@@ -7,6 +7,64 @@ const User = require('../model/user')
 const Middleware = require('../middleware/is-auth')
 const QuizResult = require('../model/quiz.js')
 const Quiz = require("../model/quiz.js");
+const logger = require("../logger");
+
+
+
+
+// router.post('/sighup', [
+//   body('email').isEmail().withMessage('please enter a vilad email').custom((value, { req }) => {
+//     return User.findOne({ email: req.email }).then(userDoc => {
+//       if (userDoc) {
+//         return Promise.reject('Email already taken')
+//       }
+//     })
+//   }).normalizeEmail(),
+
+//   body('password').trim(),
+//   body('name').notEmpty().withMessage('please enter a vilad email').custom((value, { req }) => {
+//     return User.findOne({ name: value }).then(userDoc => {
+//       if (userDoc) {
+//         return Promise.reject('name already taken')
+//       }
+//     })
+//   })
+// ], authController.signup);
+router.post('/sighup', [
+  body('email').isEmail().withMessage('please enter a vilad email').custom((value, { req }) => {
+    return User.findOne({ email: req.email }).then(userDoc => {
+      if (userDoc) {
+      
+      logger.warn({
+        event: "signup_duplicate_email",
+        email: value,
+        ip: req.ip
+      });
+        return Promise.reject('Email already taken')
+      }
+    })
+  }).normalizeEmail(),
+
+  body('password').trim(),
+  body('name').notEmpty().withMessage('please enter a vilad email').custom((value, { req }) => {
+    return User.findOne({ name: value }).then(userDoc => {
+      if (userDoc) {
+          logger.warn({
+        event: "signup_duplicate_email",
+        email: value,
+        ip: req.ip
+      });
+        return Promise.reject('name already taken')
+      }
+    })
+  })
+], authController.signup);
+
+router.post('/login', authController.login)
+
+
+
+
 router.get("/health", (req, res) => {
   res.json({ message: "Hello" });
 });
@@ -271,26 +329,9 @@ router.get('/users',
   // res.status(200).json("sdafafafafafaf")
   authController.userInfo)
 
-router.post('/sighup', [
-  body('email').isEmail().withMessage('please enter a vilad email').custom((value, { req }) => {
-    return User.findOne({ email: req.email }).then(userDoc => {
-      if (userDoc) {
-        return Promise.reject('Email already taken')
-      }
-    })
-  }).normalizeEmail(),
 
-  body('password').trim(),
-  body('name').notEmpty().withMessage('please enter a vilad email').custom((value, { req }) => {
-    return User.findOne({ name: value }).then(userDoc => {
-      if (userDoc) {
-        return Promise.reject('name already taken')
-      }
-    })
-  })
-], authController.signup);
 
-router.post('/login', authController.login)
+
 
 router.post('/google', [
   body('email').isEmail().withMessage('please enter a vilad email').custom((value, { req }) => {

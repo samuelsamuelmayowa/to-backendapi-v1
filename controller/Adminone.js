@@ -44,7 +44,7 @@ const splunkAdminQuiz = {
         "The search peers pull the data from the forwarders.",
         "Peers run searches in parallel and return their portion of re sults.",
         "The search head consolidates the individual results and prepa res reports",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["The search head dispatches searches to the peers", "Peers run searches in parallel and return their portion of re sults.", "The search head consolidates the individual results and prepa res reports"],
     },
     {
@@ -64,7 +64,7 @@ const splunkAdminQuiz = {
         "A classification that determines if a Splunk server can remotely control another Splunk server.",
         "A classification that determines what functions a Splunk server controls.",
         "A classification that determines what indexes a user can sear ch.",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["A classification that determines what capabilities a user has .", "A classification that determines what indexes a user can sear ch."],
     },
     {
@@ -74,7 +74,7 @@ const splunkAdminQuiz = {
         "homePath",
         "frozenPath",
         "thawedPath",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["coldPath", "homePath", "thawedPath"],
     },
     {
@@ -174,7 +174,7 @@ const splunkAdminQuiz = {
         "Username",
         "Full Name",
         "Default app",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["Password", "Username"],
     },
     {
@@ -185,6 +185,7 @@ const splunkAdminQuiz = {
         "Edit forwarder.conf",
         "Forwarder Management",
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["CLI", "Edit inputs . conf", "Forwarder Management"],
     },
     {
@@ -224,7 +225,7 @@ const splunkAdminQuiz = {
         "Monitor interval.",
         "On-demand monitor.",
         "Continuously monitor.",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["Index once.", "Continuously monitor."],
     },
     {
@@ -384,7 +385,7 @@ const splunkAdminQuiz = {
         "Splunk Web",
         "Editing inputs. conf",
         "Editing monitor. con f",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["CLI", "Splunk Web", "Editing inputs. conf"],
     },
     {
@@ -634,7 +635,7 @@ const splunkAdminQuiz = {
         "User context",
         "Global context",
         "Forwarder context",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["App context", "User context", "Global context"],
     },
     {
@@ -764,7 +765,7 @@ const splunkAdminQuiz = {
         "SAML",
         "RADIUS",
         "Duo Multifactor Authentication",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["LDAP", "SAML", "RADIUS"],
     },
     {
@@ -804,7 +805,7 @@ const splunkAdminQuiz = {
         "Search head",
         "Heavy Forwarder",
         "Indexer",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["Heavy Forwarder", "Indexer"],
     },
     {
@@ -864,7 +865,7 @@ const splunkAdminQuiz = {
         "Parsing pipeline",
         "fifo pipeline",
         "Indexing pipeline",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["Parsing pipeline", "Indexing pipeline"],
     },
     {
@@ -944,7 +945,7 @@ const splunkAdminQuiz = {
         "Is responsible for sending apps to forwarders.",
         "Once used, is the only way to manage forwarders",
         "Can automatically restart the host OS running the forwarder.",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["Requires an Enterprise license", "Is responsible for sending apps to forwarders."],
     },
     {
@@ -964,7 +965,7 @@ const splunkAdminQuiz = {
         "Increase number of users.",
         "Restrict user permissions.",
         "File organization.",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["Different retention times.", "Restrict user permissions."],
     },
     {
@@ -1014,7 +1015,7 @@ const splunkAdminQuiz = {
         "Compressed files are ignored by default",
         "Splunk recursively traverses through the directory structure.",
         "When adding new log files to a monitored directory, the forwa rder must be restarted to take them into",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["All discovered text files are consumed.", "Splunk recursively traverses through the directory structure."],
     },
     {
@@ -1024,7 +1025,7 @@ const splunkAdminQuiz = {
         "$SPLUNK_HOME/etc/apps/bin",
         "$SPLUNK_HOME/etc/system/bin",
         "$S?LUNK_HOME/etc/apps/<your_app>/bin_",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["$SFLUNK_HOME/bin/scripts", "$SPLUNK_HOME/etc/system/bin", "$S?LUNK_HOME/etc/apps/<your_app>/bin_"],
     },
     {
@@ -1034,7 +1035,7 @@ const splunkAdminQuiz = {
         "Server",
         "Source",
         "Sourcetype",
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["Host", "Source", "Sourcetype"],
     },
     {
@@ -1075,6 +1076,7 @@ const splunkAdminQuiz = {
         "Index access",
         "Search history",
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Capabilities", "Index access"],
     },
     {
@@ -1115,6 +1117,7 @@ const splunkAdminQuiz = {
         "Create and edit a deploymentclient . conf file in SSPLTJNE( EOME/etc/ system/local on the deployment client.",
         "Run $SPLUNK ROME/bin/spiunk set deploy-poi i : from the command line of the deployment server.",
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Run $SPLUNK_ROME/bin/ splunk set deploy-poll : from the command line of the deployment client.", "Create and edit a deploymentclient . conf file in SSPLTJNE( EOME/etc/ system/local on the deployment client."],
     },
     {
@@ -1195,6 +1198,7 @@ const splunkAdminQuiz = {
         "colddb",
         "db",
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["colddb", "db"],
     },
     {
@@ -1275,6 +1279,7 @@ const splunkAdminQuiz = {
         "Parsing pipeline",
         "Typing pipeline",
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Indexing pipeline", "Parsing pipeline"],
     },
     {
@@ -1285,6 +1290,7 @@ const splunkAdminQuiz = {
         "Obfuscating/hiding data",
         "Indexer acknowledgement",
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Compressing data", "Indexer acknowledgement"],
     },
     {
@@ -1465,6 +1471,7 @@ const splunkAdminQuiz = {
         "outputs.conf",
         "forwarder.conf",
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["inputs.conf", "outputs.conf"],
     },
     {
@@ -1545,6 +1552,7 @@ const splunkAdminQuiz = {
         "rawdata.conf",
         "transforms.conf",
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["props.conf", "transforms.conf"],
     },
     {
@@ -1595,6 +1603,7 @@ const splunkAdminQuiz = {
         "Limit the number of concurrent search jobs",
         "Allow or restrict indexes that can be searched.",
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Restrict search terms", "Limit the number of concurrent search jobs", "Allow or restrict indexes that can be searched."],
     },
     {
@@ -1655,6 +1664,7 @@ const splunkAdminQuiz = {
         "_external",
         "_thefishbucket",
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["_lnternal", "_thefishbucket"],
     },
     {
@@ -1785,6 +1795,7 @@ const splunkAdminQuiz = {
         "Warm buckets",
         "Frozen buckets",
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Hot buckets", "Cold buckets", "Warm buckets"],
     },
     {

@@ -40,6 +40,7 @@ const powerUserQuiz = {
     },
     {
       question: "Data models are composed of one or more of which of the following datasets? (Choose all that apply.)",
+       multi: true, // 👈 IMPORTANT
       options: [
         "Events datasets",
         "Search datasets",
@@ -50,6 +51,7 @@ const powerUserQuiz = {
     },
     {
       question: "When using the Field Extractor (FX), which of the following delimiters will work? (Choose all that apply.)",
+       multi: true, // 👈 IMPORTANT
       options: ["Tabs", "Pipes", "Colons", "Spaces"],
       correct: ["Tabs", "Pipes", "Colons", "Spaces"]
     },
@@ -71,6 +73,7 @@ const powerUserQuiz = {
         " \"convert_sales($euro$,$� \"(ג‚¬$,$.9$",
         " 'convert_sales($euro$,$� '(ג‚¬$,$.9$"
       ],
+       multi: true, // 👈 IMPORTANT
       correct: [" 'convert_sales(euro,� '(ג‚¬,.9"]
     },
     {
@@ -81,6 +84,7 @@ const powerUserQuiz = {
         "Settings > Field Extractions > New Field Extraction",
         "Settings > Field Extractions > Open Field Extractor"
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Event Actions > Extract Fields"]
     },
     {
@@ -106,6 +110,7 @@ const powerUserQuiz = {
         "The Knowledge Manager uses the CIM to create knowledge objects.",
         "CIM is an app that can coexist with other apps on a single Splunk deployment."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["CIM is a methodology for normalizing data.", "CIM can correlate data from different sources.", "The Knowledge Manager uses the CIM to create knowledge objects."]
     },
     {
@@ -136,6 +141,7 @@ const powerUserQuiz = {
         "Field extraction, regex, delimited.",
         "Transaction, session ID, metadata."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Events, searches, transactions."]
     },
     {
@@ -151,6 +157,7 @@ const powerUserQuiz = {
         "Calculated fields can only be applied to host and sourcetype.",
         "Calculated fields are shortcuts for performing calculations using the eval command."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Calculated fields can be used in the search bar.", "Calculated fields can be based on an extracted field.", "Calculated fields are shortcuts for performing calculations using the eval command."]
     },
     {
@@ -201,6 +208,7 @@ const powerUserQuiz = {
         "An additional field named eventcount is created.",
         "Events with the same JSESSIONID will be grouped together into a single event."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["An additional field named duration is created.", "An additional field named eventcount is created.", "Events with the same JSESSIONID will be grouped together into a single event."]
     },
     {
@@ -215,7 +223,7 @@ const powerUserQuiz = {
         "The macro name is sessiontracker(2) and the arguments are action, JESSIONID.",
         "The macro name is sessiontracker and the arguments are $action$, $JESSIONID$.",
         "The macro name is sessiontracker(2) and the Arguments are $action$, $JESSIONID$."
-      ],
+      ], multi: true, // 👈 IMPORTANT
       correct: ["The macro name is sessiontracker(2) and the arguments are action, JESSIONID."]
     },
     {
@@ -241,6 +249,7 @@ const powerUserQuiz = {
         "Tags categorize events based on a search.",
         "Tags are designed to make data more understandable."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Tags are based on field/value pairs.", "Tags are designed to make data more understandable."]
     },
     {
@@ -251,6 +260,7 @@ const powerUserQuiz = {
         "Argument values are used to resolve the search string at execution time.",
         "Argument values are used to resolve the search string when the macro is created."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Arguments are defined when the macro is created.", "Argument values are used to resolve the search string at execution time."]
     },
     {
@@ -261,11 +271,13 @@ const powerUserQuiz = {
         "A label that will appear in the Event Action menu at search time.",
         "A name for the URI where the user will be directed at search time."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["A name for the workflow action.", "A label that will appear in the Event Action menu at search time."]
     },
     {
       question: "Which of the following can be used with the eval command tostring function? (Choose all that apply.)",
       options: ['"hex"', '"commas"', '"decimal"', '"duration"'],
+       multi: true, // 👈 IMPORTANT
       correct: ['"hex"', '"commas"', '"duration"']
     },
     {
@@ -276,6 +288,7 @@ const powerUserQuiz = {
         "index=main source=mySource oldField=* | eval newField='makeMyField(oldField)'| table _time newField",
         "index=main source=mySource oldField=* | \"'newField('makeMyField(oldField)')'\" | table _time newField"
       ],
+       multi: true, // 👈 IMPORTANT
       correct: [
         "index=main source=mySource oldField=* |'makeMyField(oldField)'| table _time newField",
         "index=main source=mySource oldField=* | eval newField='makeMyField(oldField)'| table _time newField"
@@ -304,6 +317,7 @@ const powerUserQuiz = {
         "Private data models cannot be accelerated.",
         "You must have administrative permissions or the accelerate_datamodel capability to accelerate a data model."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Accelerated data models cannot be edited.", "Private data models cannot be accelerated.", "You must have administrative permissions or the accelerate_datamodel capability to accelerate a data model."]
     },
     {
@@ -459,6 +473,7 @@ const powerUserQuiz = {
         "Event types categorize events based on a search.",
         "Event types can be a useful method for capturing and sharing knowledge."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Event types can be tagged.", "Event types categorize events based on a search."]
     },
     {
@@ -469,6 +484,7 @@ const powerUserQuiz = {
         "The extraction is private.",
         "The person in the organization running the report does not have access to the index."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["The extraction is private.", "The person in the organization running the report does not have access to the index."]
     },
     {
@@ -634,6 +650,7 @@ const powerUserQuiz = {
         "Auto-Extracted fields can be given a friendly name for use in Pivot.",
         "Auto-Extracted fields can be added if they already exist in the dataset with constraints."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["Auto-Extracted fields can be hidden in Pivot.", "Auto-Extracted fields can have their data type changed.", "Auto-Extracted fields can be given a friendly name for use in Pivot.", "Auto-Extracted fields can be added if they already exist in the dataset with constraints."]
     },
     {
@@ -709,6 +726,7 @@ const powerUserQuiz = {
         "By going to the Settings menu and clicking Event Types > New.",
         "By selecting an event in search results and clicking Event Actions > Build Event Type."
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["By going to the Settings menu and clicking Event Types > New.", "By selecting an event in search results and clicking Event Actions > Build Event Type."]
     },
     {
@@ -739,6 +757,7 @@ const powerUserQuiz = {
     {
       question: "What does the Splunk Common Information Model (CIM) add-on include? (Choose all that apply.)",
       options: ["Custom visualizations", "Pre-configured data models", "Fields and event category tags", "Automatic data model acceleration"],
+       multi: true, // 👈 IMPORTANT
       correct: ["Pre-configured data models", "Fields and event category tags"]
     },
     {
@@ -814,6 +833,7 @@ const powerUserQuiz = {
         "The first and last events are no more than 5 seconds apart.",
         "The first and last events are no more than 30 seconds apart"
       ],
+       multi: true, // 👈 IMPORTANT
       correct: ["It groups events that share the same clientip and host.", "The first and last events are no more than 30 seconds apart"]
     },
     {

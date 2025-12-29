@@ -37,6 +37,7 @@
     "stripe": "^19.3.0",
     "twit": "^2.2.11",
     "twitter-api-v2": "^1.15.2",
-    "universal-cookie-express": "^6.1.1"
+    "universal-cookie-express": "^6.1.1",
+    "winston": "^3.18.3"
   }
 }
