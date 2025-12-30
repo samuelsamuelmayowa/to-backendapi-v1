@@ -54,25 +54,54 @@ app.all("*", (req, res, next) => {
 //   next();
 // });
 
+// app.use((req, res, next) => {
+//   res.setHeader(
+//     'Access-Control-Allow-Origin',
+//     // 'http://localhost:5173',
+//      'https://www.to-analytics.com'
+//   );
+
+//   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+//   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+//   // Handle preflight requests (CORS preflight)
+//   if (req.method === 'OPTIONS') {
+//     return res.sendStatus(200);
+//   }
+
+//   // ✅ This line is essential
+//   next();
+// });
+
+
 app.use((req, res, next) => {
-  res.setHeader(
-    'Access-Control-Allow-Origin',
-    // 'http://localhost:5173',
-     'https://www.to-analytics.com'
-  );
+  const allowedOrigins = [
+    "http://localhost:5173",
+    "https://www.to-analytics.com"
+  ];
 
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  const origin = req.headers.origin;
 
-  // Handle preflight requests (CORS preflight)
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
   }
 
-  // ✅ This line is essential
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
   next();
 });
-
 
 app.use("/api", pagesroutes);
 app.use("/api", dashboardroutes);
