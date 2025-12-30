@@ -22,23 +22,52 @@ const app = require('./api/index')
 const cors = require("cors");
 app.use(cors())
 // // connecting the server and frontend
-app.all('*', (req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    next();
-});
+// app.all('*', (req, res, next) => {
+//     res.header("Access-Control-Allow-Origin", "*");
+//     next();
+// });
+
+// app.use((req, res, next) => {
+//     res.setHeader('Content-Type', 'application/json');
+//     res.setHeader(
+//         'Access-Control-Allow-Origin',
+//         // 'http://localhost:5173',
+//          'https://www.to-analytics.com'
+//     );
+//     // res.setHeader('Access-Content-Allow-Orgin', 'https://www.to-analytics.com')
+//     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH,DELTE')
+//     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+//     next()
+// })
 
 app.use((req, res, next) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader(
-        'Access-Control-Allow-Origin',
-        // 'http://localhost:5173',
-         'https://www.to-analytics.com'
-    );
-    // res.setHeader('Access-Content-Allow-Orgin', 'https://www.to-analytics.com')
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH,DELTE')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-    next()
-})
+  const allowedOrigins = [
+    "http://localhost:5173",
+    "https://www.to-analytics.com"
+  ];
+
+  const origin = req.headers.origin;
+
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+  );
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
 
 
 module.exports = app
