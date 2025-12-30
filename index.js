@@ -31,7 +31,7 @@ app.use((req, res, next) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader(
         'Access-Control-Allow-Origin',
-        'http://localhost:5173',
+        // 'http://localhost:5173',
          'https://www.to-analytics.com'
     );
     // res.setHeader('Access-Content-Allow-Orgin', 'https://www.to-analytics.com')
