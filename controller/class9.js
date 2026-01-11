@@ -6,7 +6,7 @@ const MONGO_URI =
 
 
 const splunkClass9Quiz = {
-  title: "T.O Analytics – Splunk Class 9 Quiz",
+  title: "T.O Analytics  Splunk Class 9 Quiz",
   description: "Splunk architecture, deployment, licensing, and administration knowledge check.",
   category: "Splunk",
   level: "Beginner → Intermediate",
@@ -332,7 +332,7 @@ async function seed() {
     await mongoose.connect(MONGO_URI);
     console.log("Connected to DB ✅");
 
-    await Quiz.Quiz.deleteMany({ title: "T.O Analytics – Splunk Class 9 Quiz" });
+    await Quiz.Quiz.deleteMany({ title: "T.O Analytics  Splunk Class 9 Quiz" });
     await Quiz.Quiz.create(splunkClass9Quiz);
 
     console.log("T.O Analytics – Splunk Class 9 Quiz🚀 inserted!");
