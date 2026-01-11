@@ -6,7 +6,11 @@ const questionSchema = new Schema({
   question: { type: String, required: true },
   options: [{ type: String, required: true }],
   correct: { type: [String], required: true }, // supports multiple correct answers
-  reason: { type: String } 
+  reason: { type: String } ,
+   multi: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 // ✅ Quiz schema (wraps questions together)
