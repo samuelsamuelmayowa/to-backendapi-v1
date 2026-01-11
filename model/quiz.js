@@ -12,10 +12,6 @@ const questionSchema = new Schema({
     default: false,
   },
 
-   selected: {
-    type: [String],
-    default: [],
-  },
 
   correct: {
     type: [String],
@@ -30,25 +26,54 @@ const quizSchema = new Schema({
   questions: [questionSchema], // <-- this is key
 });
 
+// const quizResultSchema = new Schema(
+//   {
+//     username: { type: String, required: true },
+//     testName: { type: String, required: true },
+//     score: { type: Number, required: true },
+//     totalQuestions: { type: Number, required: true },
+//     dateTaken: { type: Date, default: Date.now },
+//     missedQuestions: [
+//       {
+//         question: String,
+//         selected: String,
+//         correct: String,
+//       },
+//     ],
+//   },
+//   { timestamps: true }
+// );
+
+// ✅ Export all models
+
 const quizResultSchema = new Schema(
   {
     username: { type: String, required: true },
     testName: { type: String, required: true },
     score: { type: Number, required: true },
     totalQuestions: { type: Number, required: true },
-    dateTaken: { type: Date, default: Date.now },
+
     missedQuestions: [
       {
-        question: String,
-        selected: String,
-        correct: String,
+        question: { type: String },
+
+        // ✅ FIX IS HERE
+        selected: {
+          type: [String],
+          default: [],
+        },
+
+        correct: {
+          type: [String],
+          default: [],
+        },
       },
     ],
   },
   { timestamps: true }
 );
 
-// ✅ Export all models
+
 const Quiz = mongoose.model('Quiz', quizSchema);
 const QuizResult = mongoose.model('QuizResult', quizResultSchema);
 
