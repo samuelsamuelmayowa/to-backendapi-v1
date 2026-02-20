@@ -382,9 +382,14 @@ app.use((error, req, res, next) => {
   res.status(status).json({ message: message, error: "server error" });
 });
 
-const port = 9000 || process.env.PORT;
+const port = process.env.PORT || 9000;
+
 app.listen(port, () => {
-  console.log("SERVER IS RUNNING   " + port);
+  console.log("SERVER IS RUNNING", port);
 });
+// const port = 9000 || process.env.PORT;
+// app.listen(port, () => {
+//   console.log("SERVER IS RUNNING   " + port);
+// });
 
 module.exports = app;
