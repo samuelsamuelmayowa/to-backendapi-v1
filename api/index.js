@@ -321,8 +321,8 @@ app.post("/api/orders/:orderID/capture", async (req, res) => {
   }
 });
 
-import OpenAI from "openai";
-
+// import OpenAI from "openai";
+const OpenAI = require("openai").default;
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
