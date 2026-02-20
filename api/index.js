@@ -321,6 +321,59 @@ app.post("/api/orders/:orderID/capture", async (req, res) => {
   }
 });
 
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { message, mode } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ error: "Message required" });
+    }
+
+    const systemPrompt = `
+You are TO-AI Tutor.
+You help students learn:
+- Splunk
+- Cybersecurity
+- SIEM
+- Incident Response
+- Web security
+- Backend development
+
+Rules:
+- Teach for education
+- No illegal hacking instructions
+- Explain clearly
+- Give SPL queries if Splunk related
+- Provide step-by-step learning guidance
+- If dangerous request → refuse politely
+    `;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: message }
+      ],
+      temperature: 0.4,
+    });
+
+    res.json({
+      reply: completion.choices[0].message.content
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
+});
+
+
 /// genral error express
 app.use((error, req, res, next) => {
   console.log(error.message);
@@ -329,7 +382,7 @@ app.use((error, req, res, next) => {
   res.status(status).json({ message: message, error: "server error" });
 });
 
-const port = 8000 || process.env.PORT;
+const port = 9000 || process.env.PORT;
 app.listen(port, () => {
   console.log("SERVER IS RUNNING   " + port);
 });
