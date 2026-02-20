@@ -327,7 +327,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-app.post("/api/chat", async (req, res) => {
+app.post("/chat", async (req, res) => {
   try {
     const { message, mode } = req.body;
 
@@ -381,9 +381,7 @@ app.use((error, req, res, next) => {
   const message = error.message;
   res.status(status).json({ message: message, error: "server error" });
 });
-
 const port = process.env.PORT || 9000;
-
 app.listen(port, () => {
   console.log("SERVER IS RUNNING", port);
 });
