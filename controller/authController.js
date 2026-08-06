@@ -268,7 +268,7 @@ async function verifyAdminRequest(req) {
     .toLowerCase();
 
   const adminEmails = String(
-    process.env.ADMIN_EMAILS || "",
+    process.env.ADMIN_EMAILS || "t.oanalyticsllc@gmail.com"|| "toanalyticsllc@gmail.com",
   )
     .split(",")
     .map((email) => email.trim().toLowerCase())
