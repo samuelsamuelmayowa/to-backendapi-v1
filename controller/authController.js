@@ -190,10 +190,10 @@ const userInfo = async (req, res, next) => {
     let decodeToken;
     let decodeValue;
     try {
-       decodeToken = jwt.verify(
-  token,
-  process.env.JWT_SECRET,
-);
+        decodeToken = jwt.verify(
+            token,
+            process.env.JWT_SECRET,
+        );
         console.log(decodeToken)
         return res.status(200).json({
             token: decodeToken
@@ -222,90 +222,90 @@ function escapeRegex(value) {
 }
 
 async function verifyAdminRequest(req) {
-  const authorization =
-    req.headers.authorization || "";
+    const authorization =
+        req.headers.authorization || "";
 
-  if (!authorization.startsWith("Bearer ")) {
-    const error = new Error(
-      "Authorization token is required.",
-    );
+    if (!authorization.startsWith("Bearer ")) {
+        const error = new Error(
+            "Authorization token is required.",
+        );
 
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const token = authorization.split(" ")[1];
-
-  if (!token) {
-    const error = new Error(
-      "Authorization token is required.",
-    );
-
-    error.statusCode = 401;
-    throw error;
-  }
-
-  let decodedUser;
-
-  try {
-    decodedUser = jwt.verify(
-      token,
-      process.env.JWT_SECRET,
-    );
-  } catch (jwtError) {
-    try {
-      decodedUser =
-        await admin.auth().verifyIdToken(token);
-    } catch (firebaseError) {
-      const error = new Error(
-        "Your login session is invalid or has expired.",
-      );
-
-      error.statusCode = 401;
-      throw error;
+        error.statusCode = 401;
+        throw error;
     }
-  }
 
-  const userEmail = String(
-    decodedUser?.email ||
-      decodedUser?.user?.email ||
-      "",
-  )
-    .trim()
-    .toLowerCase();
+    const token = authorization.split(" ")[1];
 
-  const adminEmails = String(
-    process.env.ADMIN_EMAILS ||
-      "t.oanalyticsllc@gmail.com,toanalyticsllc@gmail.com",
-  )
-    .split(",")
-    .map((email) =>
-      email.trim().toLowerCase(),
+    if (!token) {
+        const error = new Error(
+            "Authorization token is required.",
+        );
+
+        error.statusCode = 401;
+        throw error;
+    }
+
+    let decodedUser;
+
+    try {
+        decodedUser = jwt.verify(
+            token,
+            process.env.JWT_SECRET,
+        );
+    } catch (jwtError) {
+        try {
+            decodedUser =
+                await admin.auth().verifyIdToken(token);
+        } catch (firebaseError) {
+            const error = new Error(
+                "Your login session is invalid or has expired.",
+            );
+
+            error.statusCode = 401;
+            throw error;
+        }
+    }
+
+    const userEmail = String(
+        decodedUser?.email ||
+        decodedUser?.user?.email ||
+        "",
     )
-    .filter(Boolean);
+        .trim()
+        .toLowerCase();
 
-  if (!adminEmails.length) {
-    const error = new Error(
-      "ADMIN_EMAILS is not configured on the server.",
-    );
+    const adminEmails = String(
+        process.env.ADMIN_EMAILS ||
+        "t.oanalyticsllc@gmail.com,toanalyticsllc@gmail.com",
+    )
+        .split(",")
+        .map((email) =>
+            email.trim().toLowerCase(),
+        )
+        .filter(Boolean);
 
-    error.statusCode = 500;
-    throw error;
-  }
+    if (!adminEmails.length) {
+        const error = new Error(
+            "ADMIN_EMAILS is not configured on the server.",
+        );
 
-  if (
-    !userEmail ||
-    !adminEmails.includes(userEmail)
-  ) {
-    const error = new Error(
-      "You are not permitted to view all students.",
-    );
+        error.statusCode = 500;
+        throw error;
+    }
 
-    error.statusCode = 403;
-    throw error;
-  }
+    if (
+        !userEmail ||
+        !adminEmails.includes(userEmail)
+    ) {
+        const error = new Error(
+            "You are not permitted to view all students.",
+        );
 
-  return decodedUser;
+        error.statusCode = 403;
+        throw error;
+    }
+
+    return decodedUser;
 }
 
 const getAllStudents = async (
