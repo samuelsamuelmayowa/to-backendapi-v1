@@ -190,10 +190,10 @@ const userInfo = async (req, res, next) => {
     let decodeToken;
     let decodeValue;
     try {
-        decodeToken = jwt.verify(token,
-            // 'sfcdhbvdhs vsdvjsvsvvd'
-            process.env.JWT_TIME,
-        )
+       decodeToken = jwt.verify(
+  token,
+  process.env.JWT_SECRET,
+);
         console.log(decodeToken)
         return res.status(200).json({
             token: decodeToken
@@ -218,179 +218,180 @@ const userInfo = async (req, res, next) => {
 
 }
 function escapeRegex(value) {
-  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function verifyAdminRequest(req) {
-  const authorization = req.headers.authorization || "";
+    const authorization = req.headers.authorization || "";
 
-  if (!authorization.startsWith("Bearer ")) {
-    const error = new Error("Authorization token is required.");
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const token = authorization.split(" ")[1];
-
-  if (!token) {
-    const error = new Error("Authorization token is required.");
-    error.statusCode = 401;
-    throw error;
-  }
-
-  let decodedUser = null;
-
-  try {
-    decodedUser = jwt.verify(
-      token,
-      process.env.JWT_TIME,
-    );
-  } catch (jwtError) {
-    try {
-      decodedUser =
-        await admin.auth().verifyIdToken(token);
-    } catch (firebaseError) {
-      const error = new Error(
-        "Your login session is invalid or has expired.",
-      );
-
-      error.statusCode = 401;
-      throw error;
+    if (!authorization.startsWith("Bearer ")) {
+        const error = new Error("Authorization token is required.");
+        error.statusCode = 401;
+        throw error;
     }
-  }
 
-  const userEmail = String(
-    decodedUser?.email ||
-      decodedUser?.user?.email ||
-      "",
-  )
-    .trim()
-    .toLowerCase();
+    const token = authorization.split(" ")[1];
 
-  const adminEmails = String(
-    process.env.ADMIN_EMAILS || "t.oanalyticsllc@gmail.com"|| "toanalyticsllc@gmail.com",
-  )
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
+    if (!token) {
+        const error = new Error("Authorization token is required.");
+        error.statusCode = 401;
+        throw error;
+    }
 
-  if (!adminEmails.length) {
-    const error = new Error(
-      "ADMIN_EMAILS is not configured on the server.",
-    );
+    let decodedUser = null;
 
-    error.statusCode = 500;
-    throw error;
-  }
+    try {
 
-  if (!userEmail || !adminEmails.includes(userEmail)) {
-    const error = new Error(
-      "You are not permitted to view all students.",
-    );
+        decodedUser = jwt.verify(
+            token,
+            process.env.JWT_SECRET,
+        );
+    } catch (jwtError) {
+        try {
+            decodedUser =
+                await admin.auth().verifyIdToken(token);
+        } catch (firebaseError) {
+            const error = new Error(
+                "Your login session is invalid or has expired.",
+            );
 
-    error.statusCode = 403;
-    throw error;
-  }
+            error.statusCode = 401;
+            throw error;
+        }
+    }
 
-  return decodedUser;
+    const userEmail = String(
+        decodedUser?.email ||
+        decodedUser?.user?.email ||
+        "",
+    )
+        .trim()
+        .toLowerCase();
+
+    const adminEmails = String(
+        process.env.ADMIN_EMAILS || "t.oanalyticsllc@gmail.com" || "toanalyticsllc@gmail.com",
+    )
+        .split(",")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean);
+
+    if (!adminEmails.length) {
+        const error = new Error(
+            "ADMIN_EMAILS is not configured on the server.",
+        );
+
+        error.statusCode = 500;
+        throw error;
+    }
+
+    if (!userEmail || !adminEmails.includes(userEmail)) {
+        const error = new Error(
+            "You are not permitted to view all students.",
+        );
+
+        error.statusCode = 403;
+        throw error;
+    }
+
+    return decodedUser;
 }
 
-const  getAllStudents = async (
-  req,
-  res,
+const getAllStudents = async (
+    req,
+    res,
 ) => {
-  try {
-    await verifyAdminRequest(req);
+    try {
+        await verifyAdminRequest(req);
 
-    const search = String(
-      req.query.search || "",
-    ).trim();
+        const search = String(
+            req.query.search || "",
+        ).trim();
 
-    const provider = String(
-      req.query.provider || "all",
-    )
-      .trim()
-      .toLowerCase();
+        const provider = String(
+            req.query.provider || "all",
+        )
+            .trim()
+            .toLowerCase();
 
-    const requestedLimit = Number.parseInt(
-      req.query.limit,
-      10,
-    );
+        const requestedLimit = Number.parseInt(
+            req.query.limit,
+            10,
+        );
 
-    const limit = Number.isFinite(requestedLimit)
-      ? Math.min(Math.max(requestedLimit, 1), 500)
-      : 500;
+        const limit = Number.isFinite(requestedLimit)
+            ? Math.min(Math.max(requestedLimit, 1), 500)
+            : 500;
 
-    const query = {};
+        const query = {};
 
-    if (search) {
-      const safeSearch = escapeRegex(search);
-      const searchRegex = new RegExp(
-        safeSearch,
-        "i",
-      );
+        if (search) {
+            const safeSearch = escapeRegex(search);
+            const searchRegex = new RegExp(
+                safeSearch,
+                "i",
+            );
 
-      query.$or = [
-        {
-          name: searchRegex,
-        },
-        {
-          email: searchRegex,
-        },
-        {
-          provider: searchRegex,
-        },
-      ];
+            query.$or = [
+                {
+                    name: searchRegex,
+                },
+                {
+                    email: searchRegex,
+                },
+                {
+                    provider: searchRegex,
+                },
+            ];
+        }
+
+        if (provider !== "all") {
+            query.provider = new RegExp(
+                `^${escapeRegex(provider)}$`,
+                "i",
+            );
+        }
+
+        const students = await User.find(query)
+            .select(
+                [
+                    "-password",
+                    "-resetToken",
+                    "-resetTokenExpiration",
+                    "-passwordResetToken",
+                    "-passwordResetExpires",
+                    "-__v",
+                ].join(" "),
+            )
+            .sort({
+                createdAt: -1,
+                date: -1,
+                _id: -1,
+            })
+            .limit(limit)
+            .lean();
+
+        const total = await User.countDocuments(
+            query,
+        );
+
+        return res.status(200).json({
+            response: students,
+            total,
+        });
+    } catch (error) {
+        console.error(
+            "Failed to retrieve students:",
+            error,
+        );
+
+        return res
+            .status(error.statusCode || 500)
+            .json({
+                message:
+                    error.message ||
+                    "Unable to retrieve students.",
+            });
     }
-
-    if (provider !== "all") {
-      query.provider = new RegExp(
-        `^${escapeRegex(provider)}$`,
-        "i",
-      );
-    }
-
-    const students = await User.find(query)
-      .select(
-        [
-          "-password",
-          "-resetToken",
-          "-resetTokenExpiration",
-          "-passwordResetToken",
-          "-passwordResetExpires",
-          "-__v",
-        ].join(" "),
-      )
-      .sort({
-        createdAt: -1,
-        date: -1,
-        _id: -1,
-      })
-      .limit(limit)
-      .lean();
-
-    const total = await User.countDocuments(
-      query,
-    );
-
-    return res.status(200).json({
-      response: students,
-      total,
-    });
-  } catch (error) {
-    console.error(
-      "Failed to retrieve students:",
-      error,
-    );
-
-    return res
-      .status(error.statusCode || 500)
-      .json({
-        message:
-          error.message ||
-          "Unable to retrieve students.",
-      });
-  }
 };
 const googleAuth = async (req, res, next) => {
     /// storing only google users
