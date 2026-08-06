@@ -329,7 +329,10 @@ router.get('/users',
   // res.status(200).json("sdafafafafafaf")
   authController.userInfo)
 
-
+router.get(
+  "/admin/students",
+  authController.getAllStudents,
+);
 
 
 
