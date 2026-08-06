@@ -222,78 +222,90 @@ function escapeRegex(value) {
 }
 
 async function verifyAdminRequest(req) {
-    const authorization = req.headers.authorization || "";
+  const authorization =
+    req.headers.authorization || "";
 
-    if (!authorization.startsWith("Bearer ")) {
-        const error = new Error("Authorization token is required.");
-        error.statusCode = 401;
-        throw error;
-    }
+  if (!authorization.startsWith("Bearer ")) {
+    const error = new Error(
+      "Authorization token is required.",
+    );
 
-    const token = authorization.split(" ")[1];
+    error.statusCode = 401;
+    throw error;
+  }
 
-    if (!token) {
-        const error = new Error("Authorization token is required.");
-        error.statusCode = 401;
-        throw error;
-    }
+  const token = authorization.split(" ")[1];
 
-    let decodedUser = null;
+  if (!token) {
+    const error = new Error(
+      "Authorization token is required.",
+    );
 
+    error.statusCode = 401;
+    throw error;
+  }
+
+  let decodedUser;
+
+  try {
+    decodedUser = jwt.verify(
+      token,
+      process.env.JWT_SECRET,
+    );
+  } catch (jwtError) {
     try {
+      decodedUser =
+        await admin.auth().verifyIdToken(token);
+    } catch (firebaseError) {
+      const error = new Error(
+        "Your login session is invalid or has expired.",
+      );
 
-        decodedUser = jwt.verify(
-            token,
-            process.env.JWT_SECRET,
-        );
-    } catch (jwtError) {
-        try {
-            decodedUser =
-                await admin.auth().verifyIdToken(token);
-        } catch (firebaseError) {
-            const error = new Error(
-                "Your login session is invalid or has expired.",
-            );
-
-            error.statusCode = 401;
-            throw error;
-        }
+      error.statusCode = 401;
+      throw error;
     }
+  }
 
-    const userEmail = String(
-        decodedUser?.email ||
-        decodedUser?.user?.email ||
-        "",
+  const userEmail = String(
+    decodedUser?.email ||
+      decodedUser?.user?.email ||
+      "",
+  )
+    .trim()
+    .toLowerCase();
+
+  const adminEmails = String(
+    process.env.ADMIN_EMAILS ||
+      "t.oanalyticsllc@gmail.com,toanalyticsllc@gmail.com",
+  )
+    .split(",")
+    .map((email) =>
+      email.trim().toLowerCase(),
     )
-        .trim()
-        .toLowerCase();
+    .filter(Boolean);
 
-    const adminEmails = String(
-        process.env.ADMIN_EMAILS || "t.oanalyticsllc@gmail.com" || "toanalyticsllc@gmail.com",
-    )
-        .split(",")
-        .map((email) => email.trim().toLowerCase())
-        .filter(Boolean);
+  if (!adminEmails.length) {
+    const error = new Error(
+      "ADMIN_EMAILS is not configured on the server.",
+    );
 
-    if (!adminEmails.length) {
-        const error = new Error(
-            "ADMIN_EMAILS is not configured on the server.",
-        );
+    error.statusCode = 500;
+    throw error;
+  }
 
-        error.statusCode = 500;
-        throw error;
-    }
+  if (
+    !userEmail ||
+    !adminEmails.includes(userEmail)
+  ) {
+    const error = new Error(
+      "You are not permitted to view all students.",
+    );
 
-    if (!userEmail || !adminEmails.includes(userEmail)) {
-        const error = new Error(
-            "You are not permitted to view all students.",
-        );
+    error.statusCode = 403;
+    throw error;
+  }
 
-        error.statusCode = 403;
-        throw error;
-    }
-
-    return decodedUser;
+  return decodedUser;
 }
 
 const getAllStudents = async (
