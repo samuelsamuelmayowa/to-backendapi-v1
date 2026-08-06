@@ -161,12 +161,17 @@ const login = (req, res, next) => {
             {
                 expiresIn: process.env.JWT_TIME
             })
-        logger.info({
-            event: "signup_success",
-            email: newUser.email,
-            ip: req.ip
-        });
+        // logger.info({
+        //     event: "signup_success",
+        //     email: newUser.email,
+        //     ip: req.ip
+        // });
 
+        logger.info({
+            event: "login_success",
+            email: loadedUser.email,
+            ip: req.ip,
+        });
         res.status(200).json({
             message: 'welcome',
             token: token,
@@ -186,7 +191,21 @@ const login = (req, res, next) => {
 
 const userInfo = async (req, res, next) => {
     // this function will return the user login info for both google auth and jwt
-    const token = req.headers.authorization.split(' ')[1]
+    // const token = req.headers.authorization.split(' ')[1]
+
+    const authorization = req.headers.authorization || "";
+
+    if (!authorization.startsWith("Bearer ")) {
+        return res.status(401).json({
+            message: "Authorization token is required.",
+        });
+    }
+
+    const token = authorization
+        .replace(/^Bearer\s+/i, "")
+        .trim();
+
+
     let decodeToken;
     let decodeValue;
     try {
