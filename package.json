@@ -36,6 +36,7 @@
     "pdf-parse": "^2.4.5",
     "pdf-parser": "^1.0.5",
     "react-cookie": "^6.1.1",
+    "resend": "^6.28.1",
     "stripe": "^19.3.0",
     "twit": "^2.2.11",
     "twitter-api-v2": "^1.15.2",
