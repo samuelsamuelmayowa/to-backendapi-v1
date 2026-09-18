@@ -1,6 +1,6 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
-const controller = require("../controllers/splunkLab");
+const controller = require("../controller/splunkLab");
 
 const router = express.Router();
 const runLimiter = rateLimit({ windowMs: 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false });

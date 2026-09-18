@@ -1,6 +1,6 @@
 const crypto = require("crypto");
-const SplunkCase = require("../models/SplunkCase");
-const SplunkAttempt = require("../models/SplunkAttempt");
+const SplunkCase = require("../model/SplunkCase");
+const SplunkAttempt = require("../model/SplunkAttempt");
 const { executeSpl, SplError } = require("../services/splEngine");
 
 const publicCase = "slug code title subtitle briefing difficulty duration index sourcetype fields missions.key missions.title missions.instruction missions.points missions.hints missions.explanation";
