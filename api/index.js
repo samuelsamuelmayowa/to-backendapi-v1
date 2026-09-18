@@ -14,6 +14,7 @@ const Middleware = require("../middleware/auth");
 const dotenv = require("dotenv");
 const paypal = require("@paypal/checkout-server-sdk");
 const dotenvb = require("dotenv").config();
+const splunkLabRoutes = require("../routes/splunkLab");
 const cookiesMiddleware = require("universal-cookie-express");
 const Payment = require("../model/payment.js");
 const skillLabRoutes = require("../routes/skillLab.js");
@@ -104,6 +105,8 @@ app.use((req, res, next) => {
   next();
 });
 
+
+app.use("/api/splunk-lab", splunkLabRoutes);
 app.use("/api", pagesroutes);
 app.use("/api", dashboardroutes);
 app.use("/api", authroutes);
