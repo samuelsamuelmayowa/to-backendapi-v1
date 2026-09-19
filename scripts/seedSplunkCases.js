@@ -64,5 +64,14 @@ async function seed() {
   console.log(`Seeded ${cases.length} published Splunk cases.`);
   await mongoose.disconnect();
 }
+seed().catch(async (error) => {
+  console.error("Splunk seed failed");
+  console.error("Name:", error.name);
+  console.error("Message:", error.message);
+  console.error("Code:", error.code);
+  console.error("Reason:", error.reason);
 
-seed().catch(async (error) => { console.error("Splunk seed failed:", error.message); await mongoose.disconnect().catch(() => {}); process.exit(1); });
+  await mongoose.disconnect().catch(() => {});
+  process.exit(1);
+});
+// seed().catch(async (error) => { console.error("Splunk seed failed:", error.message); await mongoose.disconnect().catch(() => {}); process.exit(1); });
