@@ -33,30 +33,131 @@ exports.startAttempt = async (req, res, next) => {
 exports.runSearch = async (req, res, next) => {
   try {
     const attempt = await SplunkAttempt.findById(req.params.attemptId);
-    if (!attempt) return res.status(404).json({ message: "Attempt not found." });
-    if (attempt.guestId !== req.body.guestId) return res.status(403).json({ message: "This attempt belongs to another visitor." });
-    const item = await SplunkCase.findById(attempt.caseId).select("+events +missions.expectedQuery index sourcetype missions");
-    const mission = item.missions.find((entry) => entry.key === req.body.missionKey);
-    if (!mission) return res.status(404).json({ message: "Mission not found." });
 
-    const actual = executeSpl(item.events, String(req.body.query || "").slice(0, 3000), item);
-    const expected = executeSpl(item.events, mission.expectedQuery, item);
-    const passed = JSON.stringify(actual.rows) === JSON.stringify(expected.rows);
+    if (!attempt) {
+      return res.status(404).json({
+        message: "Attempt not found.",
+      });
+    }
+
+    if (attempt.guestId !== req.body.guestId) {
+      return res.status(403).json({
+        message: "This attempt belongs to another visitor.",
+      });
+    }
+
+    // Internal query: load events and expected answers for grading.
+    const item = await SplunkCase.findById(attempt.caseId)
+      .setOptions({ schemaLevelProjections: false })
+      .lean();
+
+    if (!item) {
+      return res.status(404).json({
+        message: "Splunk case not found.",
+      });
+    }
+
+    const mission = item.missions.find(
+      (entry) => entry.key === req.body.missionKey
+    );
+
+    if (!mission) {
+      return res.status(404).json({
+        message: "Mission not found.",
+      });
+    }
+
+    if (!mission.expectedQuery) {
+      return res.status(500).json({
+        message: "This mission does not have a grading query.",
+      });
+    }
+
+    const submittedQuery = String(req.body.query || "").slice(0, 3000);
+
+    const actual = executeSpl(
+      item.events,
+      submittedQuery,
+      item
+    );
+
+    const expected = executeSpl(
+      item.events,
+      mission.expectedQuery,
+      item
+    );
+
+    const passed =
+      JSON.stringify(actual.rows) === JSON.stringify(expected.rows);
+
     attempt.queriesRun += 1;
-    if (passed) attempt.completedMissions.set(mission.key, mission.points);
+
+    if (passed) {
+      attempt.completedMissions.set(
+        mission.key,
+        mission.points
+      );
+    }
+
     await attempt.save();
-    res.json({ data: { ...actual, passed, points: passed ? mission.points : 0, message: passed ? "Mission passed." : "The search ran, but the result does not yet match the mission objective." } });
+
+    res.json({
+      data: {
+        ...actual,
+        passed,
+        points: passed ? mission.points : 0,
+        message: passed
+          ? "Mission passed."
+          : "The search ran, but the result does not yet match the mission objective.",
+      },
+    });
   } catch (error) {
-    if (error instanceof SplError) return res.status(422).json({ message: error.message, command: error.command });
+    if (error instanceof SplError) {
+      return res.status(422).json({
+        message: error.message,
+        command: error.command,
+      });
+    }
+
     next(error);
   }
 };
+// exports.runSearch = async (req, res, next) => {
+//   try {
+//     const attempt = await SplunkAttempt.findById(req.params.attemptId);
+//     if (!attempt) return res.status(404).json({ message: "Attempt not found." });
+//     if (attempt.guestId !== req.body.guestId) return res.status(403).json({ message: "This attempt belongs to another visitor." });
+//     const item = await SplunkCase.findById(attempt.caseId).select("+events +missions.expectedQuery index sourcetype missions");
+//     const mission = item.missions.find((entry) => entry.key === req.body.missionKey);
+//     if (!mission) return res.status(404).json({ message: "Mission not found." });
+
+//     const actual = executeSpl(item.events, String(req.body.query || "").slice(0, 3000), item);
+//     const expected = executeSpl(item.events, mission.expectedQuery, item);
+//     const passed = JSON.stringify(actual.rows) === JSON.stringify(expected.rows);
+//     attempt.queriesRun += 1;
+//     if (passed) attempt.completedMissions.set(mission.key, mission.points);
+//     await attempt.save();
+//     res.json({ data: { ...actual, passed, points: passed ? mission.points : 0, message: passed ? "Mission passed." : "The search ran, but the result does not yet match the mission objective." } });
+//   } catch (error) {
+//     if (error instanceof SplError) return res.status(422).json({ message: error.message, command: error.command });
+//     next(error);
+//   }
+// };
 
 exports.useHint = async (req, res, next) => {
   try {
     const attempt = await SplunkAttempt.findById(req.params.attemptId);
     if (!attempt || attempt.guestId !== req.body.guestId) return res.status(404).json({ message: "Attempt not found." });
-    const item = await SplunkCase.findById(attempt.caseId).select("missions");
+    // const item = await SplunkCase.findById(attempt.caseId).select("missions");
+    const item = await SplunkCase.findById(attempt.caseId)
+      .setOptions({ schemaLevelProjections: false })
+      .lean();
+
+    if (!item) {
+      return res.status(404).json({
+        message: "Splunk case not found.",
+      });
+    }
     const mission = item.missions.find((entry) => entry.key === req.body.missionKey);
     if (!mission) return res.status(404).json({ message: "Mission not found." });
     const level = Math.min((attempt.hintsUsed.get(mission.key) || 0) + 1, mission.hints.length);
