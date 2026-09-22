@@ -16,6 +16,9 @@ const supabaseAdmin = createClient(
 );
 
 module.exports = supabaseAdmin;
+
+
+
 // const { createClient } = require("@supabase/supabase-js");
 
 // const supabaseUrl = process.env.SUPABASE_URL;
