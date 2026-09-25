@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node api/index.js",
     "seed:splunk": "node scripts/seedSplunkCases.js",  
+    "sync:advanced-lab": "node scripts/syncAdvancedLab.js",
+    "test:advanced-lab": "node --test tests/advancedPractice.test.js",
     "dev": "nodemon api/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
