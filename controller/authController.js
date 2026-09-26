@@ -424,6 +424,25 @@ const getAllStudents = async (
             });
     }
 };
+const googleMobileAuth = async (req, res, next) => {
+    try {
+        const { email, name } = req.googleIdentity;
+        let user = await User.findOne({ email });
+        if (!user) {
+            try {
+                user = await User.create({ email, name, provider: 'google' });
+            } catch (error) {
+                if (error.code !== 11000) throw error;
+                user = await User.findOne({ email });
+                if (!user) throw error;
+            }
+        }
+        const token = jwt.sign({ email: user.email, userId: user._id.toString() },
+            process.env.JWT_SECRET, { expiresIn: process.env.JWT_TIME });
+        return res.status(200).json({ token, email: user.email, data: { name: user.name, email: user.email } });
+    } catch (error) { next(error); }
+};
+
 const googleAuth = async (req, res, next) => {
     /// storing only google users
     try {
@@ -473,6 +492,7 @@ const googleAuth = async (req, res, next) => {
 
 module.exports = {
     googleAuth,
+    googleMobileAuth,
     getAllStudents,
     signup,
     forgotPassword,

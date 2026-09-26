@@ -336,6 +336,8 @@ router.get(
 
 
 
+router.post('/google/mobile', require('../middleware/verifyGoogleMobile')(require('../firebase')), authController.googleMobileAuth);
+
 router.post('/google', [
   body('email').isEmail().withMessage('please enter a vilad email').custom((value, { req }) => {
     return User.findOne({ email: req.email }).then(userDoc => {
