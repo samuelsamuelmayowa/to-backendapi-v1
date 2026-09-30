@@ -52,6 +52,22 @@ function createMarketDataService(provider = createAlpacaProvider()) {
       }
       return provider.searchSymbols(query);
     },
+
+    async getSymbol(rawSymbol) {
+      const symbol = validateSymbol(rawSymbol);
+      const matches = await provider.searchSymbols(symbol);
+      const exactMatch = matches.find((asset) => asset.symbol === symbol && asset.type === "stock");
+      if (!exactMatch) {
+        throw new MarketDataError("No active U.S. equity was found for that symbol.", 404);
+      }
+      return {
+        symbol: exactMatch.symbol,
+        ...(exactMatch.name ? { name: exactMatch.name } : {}),
+        ...(exactMatch.exchange ? { exchange: exactMatch.exchange } : {}),
+        type: "stock",
+        currency: "USD",
+      };
+    },
   };
 }
 

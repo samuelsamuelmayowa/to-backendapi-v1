@@ -80,6 +80,27 @@ test("symbol search filters active equities, returns at most ten, and caches the
   assert.equal(calls, 1);
 });
 
+test("symbol lookup returns exact active equity metadata and rejects partial or invalid matches", async () => {
+  let calls = 0;
+  const service = createMarketDataService({
+    searchSymbols: async (query) => {
+      calls += 1;
+      assert.equal(query, "AAPL");
+      return [
+        { symbol: "AAPL", name: "Apple Inc.", exchange: "NASDAQ", type: "stock" },
+        { symbol: "AAPX", name: "Apple ETF", exchange: "BATS", type: "stock" },
+      ];
+    },
+  });
+  assert.deepEqual(await service.getSymbol("aapl"), {
+    symbol: "AAPL", name: "Apple Inc.", exchange: "NASDAQ", type: "stock", currency: "USD",
+  });
+  const notFound = createMarketDataService({ searchSymbols: async () => [{ symbol: "AAPX", type: "stock" }] });
+  await assert.rejects(notFound.getSymbol("AAPL"), { statusCode: 404 });
+  await assert.rejects(service.getSymbol("AAPL/other"), { statusCode: 400 });
+  assert.equal(calls, 1);
+});
+
 test("validation rejects malformed input before provider calls", async () => {
   let calls = 0;
   const provider = {
@@ -109,6 +130,7 @@ test("HTTP routes expose normalized quote, bars, and search responses", async (t
     getQuote: async (symbol) => ({ symbol, price: 10, source: "alpaca" }),
     getBars: async (symbol, query) => ({ symbol, timeframe: query.timeframe || "1Day", bars: [] }),
     searchSymbols: async (query) => [{ symbol: "AAPL", name: "Apple Inc.", type: "stock", query }],
+    getSymbol: async (symbol) => ({ symbol, name: "Apple Inc.", type: "stock", currency: "USD" }),
   });
   const app = express();
   app.use("/api/market-data", createMarketDataRouter(createMarketDataController(service)));
@@ -129,6 +151,12 @@ test("HTTP routes expose normalized quote, bars, and search responses", async (t
   const search = await fetch(`${base}/search?q=apple`);
   assert.equal(search.status, 200);
   assert.deepEqual(await search.json(), [{ symbol: "AAPL", name: "Apple Inc.", type: "stock", query: "apple" }]);
+
+  const symbol = await fetch(`${base}/symbol/AAPL`);
+  assert.equal(symbol.status, 200);
+  assert.deepEqual(await symbol.json(), {
+    symbol: "AAPL", name: "Apple Inc.", type: "stock", currency: "USD",
+  });
 
   const malformedSymbol = await fetch(`${base}/quote/%3Cinvalid-symbol%3E`);
   assert.equal(malformedSymbol.status, 400);

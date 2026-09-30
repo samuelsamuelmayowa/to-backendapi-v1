@@ -16,6 +16,7 @@ function createMarketDataRouter(controller = createMarketDataController()) {
   router.get("/quote/:symbol", controller.quote);
   router.get("/bars/:symbol", controller.bars);
   router.get("/search", controller.search);
+  router.get("/symbol/:symbol", controller.symbol);
   return router;
 }
 

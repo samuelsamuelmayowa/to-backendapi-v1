@@ -17,6 +17,7 @@ function createMarketDataController(service = marketDataService) {
     quote: handle((req) => service.getQuote(req.params.symbol)),
     bars: handle((req) => service.getBars(req.params.symbol, req.query)),
     search: handle((req) => service.searchSymbols(req.query.q)),
+    symbol: handle((req) => service.getSymbol(req.params.symbol)),
   };
 }
 

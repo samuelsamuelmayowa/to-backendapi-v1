@@ -24,6 +24,7 @@ const paymentstripe = require('../routes/payment.js')
 var cookieParser = require("cookie-parser");
 const path = require("path");
 const CronJob = require("cron").CronJob;
+const { attachRealtimeMarketData } = require("../services/realtimeMarketDataService");
 app.use("/uploads", express.static(path.join(__dirname, "..","uploads")));
 // app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 console.log("Serving uploads from:", path.join(__dirname,  "..","uploads"));
@@ -353,9 +354,10 @@ app.use((error, req, res, next) => {
   res.status(status).json({ message: message, error: "server error" });
 });
 const port = process.env.PORT || 9000;
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log("SERVER IS RUNNING", port);
 });
+attachRealtimeMarketData(server);
 // const port = 9000 || process.env.PORT;
 // app.listen(port, () => {
 //   console.log("SERVER IS RUNNING   " + port);
