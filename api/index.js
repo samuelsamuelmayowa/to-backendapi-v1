@@ -3,7 +3,7 @@ const app = express();
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 app.use(bodyParser.json()); // application/json
-const cors = require("cors");
+const corsMiddleware = require("../middleware/cors");
 const dashboardroutes = require("../routes/dashboard.js");
 const authroutes = require("../routes/auth.js");
 const pagesroutes = require("../routes/pages.js");
@@ -18,6 +18,7 @@ const splunkLabRoutes = require("../routes/splunkLab.js");
 const cookiesMiddleware = require("universal-cookie-express");
 const Payment = require("../model/payment.js");
 const skillLabRoutes = require("../routes/skillLab.js");
+const marketDataRoutes = require("../routes/marketData.js");
 const Stripe = require("stripe");
 const paymentstripe = require('../routes/payment.js')
 var cookieParser = require("cookie-parser");
@@ -34,15 +35,10 @@ mongoose
   .then((res) => console.log("database connected!!!"))
   .catch((err) => console.log(err.message));
 
-app.use(cors());
-
 app.set("cookie.sameSite", "Strict"); // Default for all cookies
 app.use(cookiesMiddleware());
 
-app.all("*", (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  next();
-});
+app.use(corsMiddleware);
 
 
 
@@ -76,37 +72,8 @@ app.all("*", (req, res, next) => {
 // });
 
 
-app.use((req, res, next) => {
-  const allowedOrigins = [
-    "http://localhost:5173",
-    "https://www.to-analytics.com"
-  ];
-
-  const origin = req.headers.origin;
-
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-  );
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
-  );
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
-
-
 app.use("/api/splunk-lab", splunkLabRoutes);
+app.use("/api/market-data", marketDataRoutes);
 app.use("/api", pagesroutes);
 app.use("/api", dashboardroutes);
 app.use("/api", authroutes);
