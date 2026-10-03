@@ -185,4 +185,4 @@ function createAlpacaProvider({ env = process.env, fetcher = globalThis.fetch, n
   };
 }
 
-module.exports = { createAlpacaProvider, MarketDataError };
+module.exports = { createAlpacaProvider, MarketDataError, requestJson };

@@ -75,6 +75,7 @@ app.use(corsMiddleware);
 
 app.use("/api/splunk-lab", splunkLabRoutes);
 app.use("/api/market-data", marketDataRoutes);
+app.use("/api/options", require("../routes/options").createOptionsRouter());
 app.use("/api", pagesroutes);
 app.use("/api", dashboardroutes);
 app.use("/api", authroutes);
