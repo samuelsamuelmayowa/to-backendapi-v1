@@ -19,6 +19,7 @@ const cookiesMiddleware = require("universal-cookie-express");
 const Payment = require("../model/payment.js");
 const skillLabRoutes = require("../routes/skillLab.js");
 const marketDataRoutes = require("../routes/marketData.js");
+const jobsRoutes = require("../routes/jobs.js");
 const Stripe = require("stripe");
 const paymentstripe = require('../routes/payment.js')
 var cookieParser = require("cookie-parser");
@@ -75,6 +76,7 @@ app.use(corsMiddleware);
 
 app.use("/api/splunk-lab", splunkLabRoutes);
 app.use("/api/market-data", marketDataRoutes);
+app.use("/api/jobs", jobsRoutes);
 app.use("/api/options", require("../routes/options").createOptionsRouter());
 app.use("/api", pagesroutes);
 app.use("/api", dashboardroutes);
