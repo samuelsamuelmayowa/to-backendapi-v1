@@ -305,11 +305,26 @@ function createJobsService({
             providerStatus: response.status,
             durationMs: now() - startedAt,
           });
+          if (response.status === 401 || response.status === 403) {
+            throw new JobsError(
+              "OpenWeb Ninja rejected the API key or JSearch access. Check the key and JSearch subscription in Render.",
+              503,
+              "JOBS_PROVIDER_AUTH",
+            );
+          }
+          if (response.status === 400) {
+            throw new JobsError(
+              "OpenWeb Ninja rejected the job search request.",
+              502,
+              "JOBS_PROVIDER_REQUEST",
+            );
+          }
           throw new JobsError(
             response.status === 429
               ? "Live job search is temporarily rate limited. Please try again later."
               : "Live job search is temporarily unavailable. Please try again later.",
             response.status === 429 ? 503 : 502,
+            response.status === 429 ? "JOBS_PROVIDER_RATE_LIMIT" : "JOBS_PROVIDER_UNAVAILABLE",
           );
         }
 
@@ -408,12 +423,19 @@ function createJobsService({
           return { ...staleEntry.result, cached: true, stale: true };
         }
         if (!(error instanceof JobsError)) {
+          const timedOut = error.name === "AbortError";
           serviceLog.error("jobs.search.request_failed", {
             category: params.category,
             page: params.page,
-            errorName: error.name,
+            errorName: timedOut ? "AbortError" : error.name,
           });
-          throw new JobsError("Live job search is temporarily unavailable. Please try again later.");
+          throw new JobsError(
+            timedOut
+              ? "OpenWeb Ninja did not respond in time. Please try again shortly."
+              : "Could not connect to OpenWeb Ninja. Please try again shortly.",
+            502,
+            timedOut ? "JOBS_PROVIDER_TIMEOUT" : "JOBS_PROVIDER_CONNECTION",
+          );
         }
         throw error;
       } finally {

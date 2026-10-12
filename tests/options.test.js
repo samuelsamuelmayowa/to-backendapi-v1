@@ -6,19 +6,19 @@ const now = new Date('2026-10-02T15:00:00Z');
 const contract = { symbol: 'AAPL261016C00100000', underlyingSymbol: 'AAPL', type: 'call', strike: 100, expiration: '2026-10-16', mark: 5, timestamp: now.toISOString(), feed: 'indicative' };
 test('buy call, weighted entries, close and realized P/L are server-calculated', () => {
   let state = applyOrder(emptyWallet(), contract, 2, 'buy', 'request-one', now);
-  assert.equal(state.cash, 9000);
+  assert.equal(state.cash, 99000);
   state = applyOrder(state, { ...contract, mark: 8 }, 1, 'buy', 'request-two', now);
   assert.equal(state.positions[0].average, 6);
   state = applyOrder(state, { ...contract, mark: 7 }, 3, 'sell', 'request-three', now);
-  assert.equal(state.cash, 10300);
+  assert.equal(state.cash, 100300);
   assert.equal(state.positions.length, 0);
   assert.equal(state.history[0].realizedPnl, 300);
 });
 test('long put accounting and validations reject unsafe orders without mutation', () => {
   const wallet = emptyWallet(), put = { ...contract, type: 'put', symbol: 'AAPL261016P00100000' };
-  assert.equal(applyOrder(wallet, put, 1, 'buy', 'put-request', now).cash, 9500);
+  assert.equal(applyOrder(wallet, put, 1, 'buy', 'put-request', now).cash, 99500);
   for (const qty of [0, -1, 0.5, '1', NaN, 10001]) assert.throws(() => applyOrder(wallet, contract, qty, 'buy', 'r', now));
-  assert.throws(() => applyOrder(wallet, contract, 21, 'buy', 'r', now), /Insufficient/);
+  assert.throws(() => applyOrder(wallet, contract, 10000, 'buy', 'r', now), /Insufficient/);
   assert.throws(() => applyOrder(wallet, contract, 1, 'sell', 'r', now), /owned/);
   assert.throws(() => applyOrder(wallet, { ...contract, mark: null }, 1, 'buy', 'r', now), /premium/);
   assert.throws(() => applyOrder(wallet, { ...contract, expiration: '2026-10-02' }, 1, 'buy', 'r', now), /expiration/);

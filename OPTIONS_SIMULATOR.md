@@ -2,7 +2,7 @@
 
 Frontend: `t-o-analytics`. Backend: `to-backendapi-v1`.
 
-Apply `migrations/20261002_options_accounts.sql` to the same Supabase project used by the existing trading simulator. This creates only `options_practice_accounts`; it does not touch Stocks tables. RLS denies browser access and the Express API uses the existing Supabase admin client after verifying the simulator's bearer token with `auth.getUser` (including authenticated visitor sessions).
+Apply `migrations/20261002_options_accounts.sql` and then `migrations/20261012_options_cash_100000.sql` to the same Supabase project used by the existing trading simulator. The first creates only `options_practice_accounts`; the second raises existing Options wallet cash by $90,000 and changes the database default to $100,000 without touching Stocks tables, positions, or trade history. RLS denies browser access and the Express API uses the existing Supabase admin client after verifying the simulator's bearer token with `auth.getUser` (including authenticated visitor sessions).
 
 Required backend environment variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ALPACA_API_KEY`, `ALPACA_API_SECRET`. Set `ALPACA_OPTIONS_FEED=indicative` (default) or `opra` only with entitlement. Existing frontend `VITE_BACKEND_API`/`VITE_API_URL` and Supabase configuration are reused. Never put Alpaca credentials or service role keys in frontend environment variables.
 
@@ -14,7 +14,7 @@ Deploy the backend route and database migration before the new frontend. The UI 
 - `GET /api/options/chain?symbol=AAPL&expiration=YYYY-MM-DD&type=call`: normalized quotes/Greeks, null missing values; snapshots cached 15 seconds.
 - Authenticated `GET /api/options/account`, `/positions`, `/history`.
 - Authenticated `POST /api/options/orders`: `{symbol, quantity, action: "buy"|"sell", requestId}`. Browser premium/cost/balance/user ID are ignored. A version-checked atomic write stores cash, positions and fills together, rejecting concurrent conflicts. Successful request IDs are idempotent until account reset.
-- Authenticated `POST /api/options/reset`: clears only this user's Options account and restores $10,000 virtual cash.
+- Authenticated `POST /api/options/reset`: clears only this user's Options account and restores $100,000 virtual cash.
 
 This first version uses one isolated JSON account ledger per user to save each transaction atomically without a multi-table RPC. Full fill history is retained; production growth may warrant a normalized ledger with an atomic database transaction. Long positions only, standard 100-share contracts, no exercise/assignment. Fills require a quote/trade timestamp no older than 20 minutes (allowing indicative delay); trading is disabled on and after the expiration date. No stale valuation fallback to entry cost. Today's P/L is null until daily equity baselines are implemented. Total P/L includes realized and unrealized returns since reset when current position marks are available.
 

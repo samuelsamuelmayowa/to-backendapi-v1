@@ -1,4 +1,4 @@
-const INITIAL_CASH = 10000;
+const INITIAL_CASH = 100000;
 const round = v => Math.round(v * 100) / 100;
 const emptyWallet = () => ({ cash: INITIAL_CASH, positions: [], history: [] });
 function applyOrder(wallet, contract, quantity, action, requestId, now = new Date()) {

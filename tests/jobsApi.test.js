@@ -225,6 +225,39 @@ test("stale cached jobs are served when provider refresh fails; missing credenti
   await assert.rejects(unconfigured.getJobs(), { statusCode: 503, code: "JOBS_NOT_CONFIGURED" });
 });
 
+test("provider auth, rate-limit, and server errors have distinct safe diagnostics", async () => {
+  for (const [status, code] of [
+    [401, "JOBS_PROVIDER_AUTH"],
+    [403, "JOBS_PROVIDER_AUTH"],
+    [429, "JOBS_PROVIDER_RATE_LIMIT"],
+    [503, "JOBS_PROVIDER_UNAVAILABLE"],
+  ]) {
+    const service = createJobsService({
+      env: { OPENWEBNINJA_API_KEY: "test-key" },
+      log: createLog(),
+      fetcher: async () => jsonResponse({ error: "private provider body" }, status),
+    });
+    await assert.rejects(service.getJobs(), { code });
+  }
+});
+
+test("provider timeouts return a safe, identifiable diagnostic", async () => {
+  const service = createJobsService({
+    env: { OPENWEBNINJA_API_KEY: "test-key" },
+    log: createLog(),
+    timeoutMs: 1,
+    fetcher: async (_url, { signal }) =>
+      new Promise((_resolve, reject) => {
+        signal.addEventListener("abort", () => {
+          const error = new Error("request aborted");
+          error.name = "AbortError";
+          reject(error);
+        });
+      }),
+  });
+  await assert.rejects(service.getJobs(), { code: "JOBS_PROVIDER_TIMEOUT" });
+});
+
 test("jobs HTTP routes return normalized results and safe provider failures", async (t) => {
   const service = {
     getJobs: async () => ({
