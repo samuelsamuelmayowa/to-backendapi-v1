@@ -61,7 +61,7 @@ router.post('/sighup', [
 ], authController.signup);
 
 router.post('/login', authController.login)
-
+;
 
 
 

@@ -18,6 +18,7 @@ const splunkLabRoutes = require("../routes/splunkLab.js");
 const cookiesMiddleware = require("universal-cookie-express");
 const Payment = require("../model/payment.js");
 const skillLabRoutes = require("../routes/skillLab.js");
+const skillLabWorkplaceRoutes = require("../routes/skillLabWorkplace.js");
 const marketDataRoutes = require("../routes/marketData.js");
 // const jobsRoutes = require("../routes/jobs.js");
 const createJobsRouter = require("../routes/jobs.js");
@@ -95,6 +96,7 @@ app.use("/api/payment", paymentstripe)
 app.use("/api", adminroutes);
 app.use('/api',uploadsroutes)
 
+app.use("/api/skill-lab", skillLabWorkplaceRoutes);
 app.use("/api/skill-lab", skillLabRoutes);
 
 
