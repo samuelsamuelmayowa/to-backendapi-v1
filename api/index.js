@@ -2,7 +2,9 @@ const express = require("express");
 const app = express();
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
-app.use(bodyParser.json()); // application/json
+// Webhook MUST come before JSON parsing
+
+
 const corsMiddleware = require("../middleware/cors");
 const dashboardroutes = require("../routes/dashboard.js");
 const authroutes = require("../routes/auth.js");
@@ -23,7 +25,16 @@ const marketDataRoutes = require("../routes/marketData.js");
 // const jobsRoutes = require("../routes/jobs.js");
 const createJobsRouter = require("../routes/jobs.js");
 const Stripe = require("stripe");
-const paymentstripe = require('../routes/payment.js')
+// const paymentstripe = require('../routes/payment.js')
+
+const {
+  checkoutRouter,
+  webhookRouter,
+} = require("../routes/payment.js");
+
+app.use("/api/payment/webhook", webhookRouter);
+
+app.use(bodyParser.json()); // application/json
 var cookieParser = require("cookie-parser");
 const path = require("path");
 const CronJob = require("cron").CronJob;
@@ -46,35 +57,6 @@ app.use(corsMiddleware);
 
 
 
-// // connecting the server and frontend
-// app.use((req, res, next) => {
-//   res.cookie("myCookie", "value", { sameSite: "Strict" });
-//   res.setHeader("Content-Type", "application/json");
-//   res.setHeader("Access-Content-Allow-Orgin", "*");
-//   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH,DELTE");
-//   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-//   next();
-// });
-
-// app.use((req, res, next) => {
-//   res.setHeader(
-//     'Access-Control-Allow-Origin',
-//     // 'http://localhost:5173',
-//      'https://www.to-analytics.com'
-//   );
-
-//   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-//   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-//   // Handle preflight requests (CORS preflight)
-//   if (req.method === 'OPTIONS') {
-//     return res.sendStatus(200);
-//   }
-
-//   // ✅ This line is essential
-//   next();
-// });
-
 
 app.use("/api/splunk-lab", splunkLabRoutes);
 app.use("/api/market-data", marketDataRoutes);
@@ -92,7 +74,8 @@ app.use("/api/options", require("../routes/options").createOptionsRouter());
 app.use("/api", pagesroutes);
 app.use("/api", dashboardroutes);
 app.use("/api", authroutes);
-app.use("/api/payment", paymentstripe)
+app.use("/api/payment", checkoutRouter);
+// app.use("/api/payment", paymentstripe)
 app.use("/api", adminroutes);
 app.use('/api',uploadsroutes)
 
