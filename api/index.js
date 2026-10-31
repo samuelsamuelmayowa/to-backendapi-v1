@@ -59,6 +59,7 @@ app.use(corsMiddleware);
 
 
 app.use("/api/splunk-lab", splunkLabRoutes);
+app.use("/api/splunk-alerts", require("../routes/splunkAlerts"));
 app.use("/api/market-data", marketDataRoutes);
 // app.use("/api/jobs", jobsRoutes);
 app.use(
