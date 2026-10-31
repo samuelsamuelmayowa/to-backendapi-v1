@@ -42,10 +42,20 @@ router.post("/notify", authenticatedUser, userRateLimit, async (req, res) => {
       html,
       text,
     }, { idempotencyKey });
-    if (error) {
-      console.error("Splunk alert notification provider error:", error.name);
-      return res.status(502).json({ message: "Resend could not accept the notification. Try again later." });
-    }
+ 
+if (error) {
+  console.error("Splunk alert Resend error:", {
+    name: error.name,
+    statusCode: error.statusCode,
+    message: error.message,
+  });
+
+  return res.status(502).json({
+    message:
+      "Resend rejected the notification. Check backend logs.",
+  });
+}
+
     return res.status(200).json({ success: true, emailId: data?.id || null, message: "Notification accepted for delivery." });
   } catch (error) {
     console.error("Splunk alert email unexpected error:", error?.name);
