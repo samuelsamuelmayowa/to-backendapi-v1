@@ -5,14 +5,14 @@ const bodyParser = require("body-parser");
 // Webhook MUST come before JSON parsing
 
 
-const corsMiddleware = require("../middleware/cors");
+const corsMiddleware = require("../middleware/cors.js");
 const dashboardroutes = require("../routes/dashboard.js");
 const authroutes = require("../routes/auth.js");
 const pagesroutes = require("../routes/pages.js");
 const uploadsroutes = require('../routes/file.js')
 const adminroutes = require("../routes/adminroutes.js");
 const Paypal = require("@paypal/checkout-server-sdk");
-const Middleware = require("../middleware/auth");
+const Middleware = require("../middleware/auth.js");
 const dotenv = require("dotenv");
 const paypal = require("@paypal/checkout-server-sdk");
 const dotenvb = require("dotenv").config();
@@ -38,7 +38,7 @@ app.use(bodyParser.json()); // application/json
 var cookieParser = require("cookie-parser");
 const path = require("path");
 const CronJob = require("cron").CronJob;
-const { attachRealtimeMarketData } = require("../services/realtimeMarketDataService");
+const { attachRealtimeMarketData } = require("../services/realtimeMarketDataService.js");
 app.use("/uploads", express.static(path.join(__dirname, "..","uploads")));
 // app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 console.log("Serving uploads from:", path.join(__dirname,  "..","uploads"));
@@ -70,7 +70,7 @@ app.use(
         : null,
   })
 );
-app.use("/api/options", require("../routes/options").createOptionsRouter());
+app.use("/api/options", require("../routes/options.js").createOptionsRouter());
 app.use("/api", pagesroutes);
 app.use("/api", dashboardroutes);
 app.use("/api", authroutes);
