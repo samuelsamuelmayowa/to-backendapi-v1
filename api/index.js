@@ -23,7 +23,7 @@ const skillLabRoutes = require("../routes/skillLab.js");
 const skillLabWorkplaceRoutes = require("../routes/skillLabWorkplace.js");
 const marketDataRoutes = require("../routes/marketData.js");
 
-const orientationFeedbackRouter = require("./routes/orientationFeedback");
+const orientationFeedbackRouter = require("../routes/orientationFeedback");
 
 
 // const jobsRoutes = require("../routes/jobs.js");
