@@ -55,7 +55,16 @@ router.post("/offers/:offerId/accept", async (req, res, next) => {
       dbError(error, "Unable to accept the virtual offer.");
     }
     return res.status(201).json({ employmentId: data.employmentId, message: "Welcome to your virtual workplace!" });
-  } catch (error) { next(error); }
+  } catch (error) {
+  console.error("SkillLab offer acceptance failed:", {
+    message: error.message,
+    code: error.code || error.cause?.code,
+    details: error.details || error.cause?.details,
+    hint: error.hint || error.cause?.hint,
+  });
+
+  return next(error);
+}; 
 });
 
 // Each UTC day, employees get two fresh tickets from their role's scenario bank.
