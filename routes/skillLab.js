@@ -88,18 +88,36 @@ function safeLab(lab) {
 
 
 
-function throwDatabaseError(error, message) {
+// function throwDatabaseError(error, message) {
 
+//   if (!error) return;
+
+//   const wrapped = new Error(message || error.message);
+
+//   wrapped.statusCode = 500;
+
+//   wrapped.cause = error;
+
+//   throw wrapped;
+
+// }
+
+function throwDatabaseError(error, message) {
   if (!error) return;
 
+  console.error("SkillLab database error:", {
+    context: message || "Database operation failed",
+    message: error.message,
+    code: error.code,
+    details: error.details,
+    hint: error.hint,
+  });
+
   const wrapped = new Error(message || error.message);
-
   wrapped.statusCode = 500;
-
   wrapped.cause = error;
 
   throw wrapped;
-
 }
 
 
