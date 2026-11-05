@@ -108,6 +108,14 @@ const TASKS = {
 async function main() {
   const { data: roles, error: roleError } = await supabase.from("skill_lab_roles").select("id,slug").eq("is_active", true);
   if (roleError) throw roleError;
+
+  console.log(
+  "Roles found in Supabase:",
+  (roles || []).map((role) => ({
+    slug: role.slug,
+    id: role.id,
+  }))
+);
   let questionCount = 0;
   let templateCount = 0;
   for (const role of roles || []) {
