@@ -149,7 +149,14 @@ router.get("/workplace", async (req, res, next) => {
       monthlyTaskTarget: 20,
       isSimulation: true,
     });
-  } catch (error) { next(error); }
+  } 
+console.error("SkillLab workplace loading failed:", {
+  message: error.message,
+  code: error.code || error.cause?.code,
+  details: error.details || error.cause?.details,
+  hint: error.hint || error.cause?.hint,
+});
+
 });
 
 function evaluateTask(template, splQuery, report) {
