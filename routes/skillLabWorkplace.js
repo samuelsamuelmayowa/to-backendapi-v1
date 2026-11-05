@@ -116,48 +116,114 @@ async function settlePreviousMonths(employment) {
   }
 }
 
-router.get("/workplace", async (req, res, next) => {
+
+
+router.get('/workplace', async (req, res, next) => {
   try {
     const profile = await profileFor(req.skillLabUser);
-    if (!profile) return res.status(403).json({ message: "Take an interview to unlock SkillLab." });
+    if (!profile) {
+      return res.status(403).json({
+        message: 'Take an interview to unlock SkillLab.',
+      });
+    }
+
     const employment = await activeJob(profile.id);
     if (!employment) {
-      const { data: offers, error: offerError } = await supabase.from("skill_lab_job_offers")
-        .select("id,status,job_level,virtual_salary,expires_at,skill_lab_roles(title),skill_lab_companies(name)")
-        .eq("profile_id", profile.id).in("status", ["pending", "offered"])
-        .gt("expires_at", new Date().toISOString())
-        .order("created_at", { ascending: false }).limit(5);
+      const { data: offers, error: offerError } = await supabase
+        .from('skill_lab_job_offers')
+        .select('id,status,job_level,virtual_salary,expires_at,skill_lab_roles(title),skill_lab_companies(name)')
+        .eq('profile_id', profile.id)
+        .in('status', ['pending', 'offered'])
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(5);
       dbError(offerError);
       return res.json({ employment: null, offers: offers || [] });
     }
+
     await settlePreviousMonths(employment);
     await assignDailyTasks(employment);
+
     const [tasks, payroll, wallet] = await Promise.all([
-      supabase.from("skill_lab_tasks").select("id,assigned_for,due_at,status,score,feedback,submission_text,spl_query,skill_lab_task_templates(title,category,brief,sample_logs,starter_query,expected_output,difficulty)")
-        .eq("employment_id", employment.id).order("assigned_for", { ascending: false }).limit(80),
-      supabase.from("skill_lab_payroll").select("id,pay_month,tasks_completed,credits_paid,paid_at")
-        .eq("employment_id", employment.id).order("pay_month", { ascending: false }).limit(12),
-      supabase.from("skill_lab_wallets").select("balance,lifetime_earned,currency").eq("profile_id", profile.id).maybeSingle(),
+      supabase
+        .from('skill_lab_workplace_tasks') // Separate from the older training tasks.
+        .select('id,assigned_for,due_at,status,score,feedback,submission_text,spl_query,skill_lab_task_templates(title,category,brief,sample_logs,starter_query,expected_output,difficulty)')
+        .eq('employment_id', employment.id)
+        .order('assigned_for', { ascending: false })
+        .limit(80),
+      supabase
+        .from('skill_lab_payroll')
+        .select('id,pay_month,tasks_completed,credits_paid,paid_at')
+        .eq('employment_id', employment.id)
+        .order('pay_month', { ascending: false })
+        .limit(12),
+      supabase
+        .from('skill_lab_wallets')
+        .select('balance,lifetime_earned,currency')
+        .eq('profile_id', profile.id)
+        .maybeSingle(),
     ]);
-    dbError(tasks.error); dbError(payroll.error); dbError(wallet.error);
+
+    dbError(tasks.error);
+    dbError(payroll.error);
+    dbError(wallet.error);
+
     return res.json({
       employment,
       tasks: tasks.data || [],
       payroll: payroll.data || [],
-      wallet: wallet.data || { balance: 0, lifetime_earned: 0, currency: "TOC" },
+      wallet: wallet.data || { balance: 0, lifetime_earned: 0, currency: 'TOC' },
       today: todayUTC(),
       monthlyTaskTarget: 20,
       isSimulation: true,
     });
-  } 
-console.error("SkillLab workplace loading failed:", {
-  message: error.message,
-  code: error.code || error.cause?.code,
-  details: error.details || error.cause?.details,
-  hint: error.hint || error.cause?.hint,
+  } catch (error) {
+    // Do not log student credentials or JWTs.
+    console.error('SkillLab workplace loading failed:', {
+      message: error.message,
+      code: error.code || error.cause?.code || null,
+      details: error.details || error.cause?.details || null,
+      hint: error.hint || error.cause?.hint || null,
+    });
+    return next(error);
+  }
 });
 
-});
+// router.get("/workplace", async (req, res, next) => {
+//   try {
+//     const profile = await profileFor(req.skillLabUser);
+//     if (!profile) return res.status(403).json({ message: "Take an interview to unlock SkillLab." });
+//     const employment = await activeJob(profile.id);
+//     if (!employment) {
+//       const { data: offers, error: offerError } = await supabase.from("skill_lab_job_offers")
+//         .select("id,status,job_level,virtual_salary,expires_at,skill_lab_roles(title),skill_lab_companies(name)")
+//         .eq("profile_id", profile.id).in("status", ["pending", "offered"])
+//         .gt("expires_at", new Date().toISOString())
+//         .order("created_at", { ascending: false }).limit(5);
+//       dbError(offerError);
+//       return res.json({ employment: null, offers: offers || [] });
+//     }
+//     await settlePreviousMonths(employment);
+//     await assignDailyTasks(employment);
+//     const [tasks, payroll, wallet] = await Promise.all([
+//       supabase.from("skill_lab_tasks").select("id,assigned_for,due_at,status,score,feedback,submission_text,spl_query,skill_lab_task_templates(title,category,brief,sample_logs,starter_query,expected_output,difficulty)")
+//         .eq("employment_id", employment.id).order("assigned_for", { ascending: false }).limit(80),
+//       supabase.from("skill_lab_payroll").select("id,pay_month,tasks_completed,credits_paid,paid_at")
+//         .eq("employment_id", employment.id).order("pay_month", { ascending: false }).limit(12),
+//       supabase.from("skill_lab_wallets").select("balance,lifetime_earned,currency").eq("profile_id", profile.id).maybeSingle(),
+//     ]);
+//     dbError(tasks.error); dbError(payroll.error); dbError(wallet.error);
+//     return res.json({
+//       employment,
+//       tasks: tasks.data || [],
+//       payroll: payroll.data || [],
+//       wallet: wallet.data || { balance: 0, lifetime_earned: 0, currency: "TOC" },
+//       today: todayUTC(),
+//       monthlyTaskTarget: 20,
+//       isSimulation: true,
+//     });
+//   } catch () { next(error); }
+// });
 
 function evaluateTask(template, splQuery, report) {
   const query = splQuery.toLowerCase();
