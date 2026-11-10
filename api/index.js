@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const app = express();
 const mongoose = require("mongoose");
@@ -6,16 +7,17 @@ const bodyParser = require("body-parser");
 
 
 const corsMiddleware = require("../middleware/cors");
+const { csrfProtection } = require("../middleware/sessionCookie");
 const dashboardroutes = require("../routes/dashboard.js");
 const authroutes = require("../routes/auth.js");
+const sessionRoutes = require("../routes/session.js");
 const pagesroutes = require("../routes/pages.js");
 const uploadsroutes = require('../routes/file.js')
 const adminroutes = require("../routes/adminroutes.js");
+const stockQuizRoutes = require("../routes/stockQuizzes.js");
 const Paypal = require("@paypal/checkout-server-sdk");
 const Middleware = require("../middleware/auth");
-const dotenv = require("dotenv");
 const paypal = require("@paypal/checkout-server-sdk");
-const dotenvb = require("dotenv").config();
 const splunkLabRoutes = require("../routes/splunkLab.js");
 const cookiesMiddleware = require("universal-cookie-express");
 const Payment = require("../model/payment.js");
@@ -54,10 +56,12 @@ mongoose
   .then((res) => console.log("database connected!!!"))
   .catch((err) => console.log(err.message));
 
-app.set("cookie.sameSite", "Strict"); // Default for all cookies
+app.use(cookieParser());
+app.set("cookie.sameSite", "Strict"); // Applies only to legacy cookies; auth cookies set explicit options.
 app.use(cookiesMiddleware());
 
 app.use(corsMiddleware);
+app.use(csrfProtection);
 
 
 app.use("/api/orientation-feedback", orientationFeedbackRouter);
@@ -78,6 +82,8 @@ app.use(
 app.use("/api/options", require("../routes/options").createOptionsRouter());
 app.use("/api", pagesroutes);
 app.use("/api", dashboardroutes);
+app.use("/api", sessionRoutes);
+app.use("/api", stockQuizRoutes);
 app.use("/api", authroutes);
 app.use("/api/payment", checkoutRouter);
 // app.use("/api/payment", paymentstripe)

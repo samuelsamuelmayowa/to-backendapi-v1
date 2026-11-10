@@ -1,17 +1,17 @@
 const jwt = require("jsonwebtoken");
 const User = require("../model/user.js");
+const { getRequestToken } = require("./sessionCookie");
 
 async function requireSkillLabAuth(req, res, next) {
   try {
-    const authorization = String(req.headers.authorization || "");
-
-    if (!authorization.startsWith("Bearer ")) {
+    const requestToken = getRequestToken(req);
+    if (!requestToken.token) {
       return res.status(401).json({
         message: "Please log in to use TO Skill Lab.",
       });
     }
 
-    const token = authorization.replace(/^Bearer\s+/i, "").trim();
+    const token = requestToken.token;
 
     if (!token) {
       return res.status(401).json({ message: "Your login token is missing." });

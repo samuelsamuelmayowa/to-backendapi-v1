@@ -1,52 +1,35 @@
-const { validationResult } = require('express-validator')
-const Admin = require('../controller/adminController')
 const jwt = require('jsonwebtoken')
+const crypto = require('crypto')
+const { issueSessionCookies } = require('../middleware/sessionCookie')
 
-
-const databaseadmin = {
-    email: "admin@gmail.com",
-    password: "123456"
-}
-
-
-// password might be changed in the future by the owner of to, also creating a admin creation 
-
-// this funtion called login will login the admin user into the admin dashboard 
 const login = async (req, res, next) => {
-    let loadedAmin;
     try {
         const { password, email } = req.body;
-        if (databaseadmin.password === password && databaseadmin.email === email) {
-            loadedAmin = {
-                email: email,
-                password: password
-            }
-            const token = jwt.sign({ email:loadedAmin.email,},
-                'sfcdhbvdhs vsdvjsvsvvd', {
-                expiresIn: '1h'
-            })
-            res.status(201).json({
-                response: loadedAmin,
-                token:token,
-                message:'welcome!!!!'
-            })
-    
+        const expectedEmail = "admin@gmail.com";
+        const expectedPassword = "123456789";
+        if (!expectedEmail || !expectedPassword || !process.env.JWT_SECRET) {
+            return res.status(503).json({ message: "Admin login is not configured on the server." });
         }
-        else {
-            res.status(422).json({
-                message:'no details please contact admin',
-                response: 'no details please contact admin'
-            })
-    
+
+        const suppliedPassword = Buffer.from(String(password || ""));
+        const configuredPassword = Buffer.from(expectedPassword);
+        const passwordMatches = suppliedPassword.length === configuredPassword.length &&
+            suppliedPassword.length > 0 && crypto.timingSafeEqual(suppliedPassword, configuredPassword);
+        if (String(email || "").trim().toLowerCase() !== expectedEmail || !passwordMatches) {
+            return res.status(422).json({ message: "Invalid admin credentials." });
         }
-       
-       
-    } catch (er) {
-        if (!err.statusCode) {
-            err.statusCode = 500;
-        }
-        next(err)
-        console.log(err.message)
+
+        const token = jwt.sign({ email: expectedEmail, role: "admin" }, process.env.JWT_SECRET, {
+            expiresIn: process.env.ADMIN_SESSION_TTL || '1h',
+        });
+        const csrfToken = issueSessionCookies(res, token);
+        return res.status(201).json({
+            response: { email: expectedEmail, role: "admin" },
+            csrfToken,
+            message: 'Welcome.',
+        });
+    } catch (error) {
+        return next(error);
     }
 }
 module.exports = {

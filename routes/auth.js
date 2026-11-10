@@ -8,6 +8,9 @@ const Middleware = require('../middleware/is-auth')
 const QuizResult = require('../model/quiz.js')
 const Quiz = require("../model/quiz.js");
 const logger = require("../logger");
+const { requireTrustedOrigin, requireSession, requireAdminSession } = require("../middleware/sessionCookie");
+const { checkQuizAccess, quizIdForTitle } = require("../services/studentAccess");
+const verifyGoogleIdentity = require("../middleware/verifyGoogleMobile")(require("../firebase"));
 
 
 
@@ -30,7 +33,7 @@ const logger = require("../logger");
 //     })
 //   })
 // ], authController.signup);
-router.post('/sighup', [
+router.post('/sighup', requireTrustedOrigin, [
   body('email').isEmail().withMessage('please enter a vilad email').custom((value, { req }) => {
     return User.findOne({ email: req.email }).then(userDoc => {
       if (userDoc) {
@@ -60,7 +63,7 @@ router.post('/sighup', [
   })
 ], authController.signup);
 
-router.post('/login', authController.login)
+router.post('/login', requireTrustedOrigin, authController.login)
 ;
 
 
@@ -78,18 +81,20 @@ router.get("/quiz/list", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
-router.get("/quiz/all-results", async (req, res) => {
+router.get("/quiz/all-results", requireTrustedOrigin, requireSession, requireAdminSession, async (req, res) => {
   try {
     const results = await Quiz.QuizResult.find().sort({ dateTaken: -1 });
+    res.set("Cache-Control", "no-store");
     res.json(results);
   } catch (err) {
     res.status(500).json({ message: "Error fetching results", error: err });
   }
 });
 
-router.get("/all-scores", async (req, res) => {
+router.get("/all-scores", requireTrustedOrigin, requireSession, requireAdminSession, async (req, res) => {
   try {
     const results = await Quiz.QuizResult.find().sort({ createdAt: -1 });
+    res.set("Cache-Control", "no-store");
     res.json(results);
   } catch (err) {
     console.error(err);
@@ -97,27 +102,39 @@ router.get("/all-scores", async (req, res) => {
   }
 });
 
-router.get("/quiz/:name", async (req, res) => {
+router.get("/quiz/:name", requireTrustedOrigin, requireSession, async (req, res) => {
   try {
     const quiz = await Quiz.Quiz.findOne({ title: req.params.name });
     if (!quiz) return res.status(404).json({ message: "Quiz not found" });
+    const quizId = quizIdForTitle(quiz.title);
+    const email = String(req.authClaims?.email || "").trim().toLowerCase();
+    if (!quizId || !(await checkQuizAccess(email, quizId))) {
+      return res.status(403).json({ message: "This quiz has not been assigned to your account." });
+    }
+    res.set("Cache-Control", "no-store");
     res.json(quiz);
   } catch (err) {
+    if (err.statusCode) return res.status(err.statusCode).json({ message: err.message });
     res.status(500).json({ message: err.message });
   }
 });
 
-router.post("/quiz/save", async (req, res) => {
+router.post("/quiz/save", requireTrustedOrigin, requireSession, async (req, res) => {
   try {
     const { username, testName, score, totalQuestions, missedQuestions } = req.body;
+    const email = String(req.authClaims?.email || "").trim().toLowerCase();
+    const quizId = quizIdForTitle(testName);
 
     // Validate required fields
-    if (!username || !testName || score === undefined || !totalQuestions) {
+    if (!email || !username || !testName || score === undefined || !totalQuestions) {
       return res.status(400).json({ message: "Missing fields" });
+    }
+    if (!quizId || !(await checkQuizAccess(email, quizId))) {
+      return res.status(403).json({ message: "This quiz has not been assigned to your account." });
     }
 
     const result = new QuizResult.QuizResult({
-      username,
+      username: email,
       testName,
       score,
       totalQuestions,
@@ -184,16 +201,18 @@ router.post("/quiz/save", async (req, res) => {
 //   }
 // });
 
-router.get("/quiz/my-scores/:username", async (req, res) => {
+router.get("/quiz/my-scores/:username", requireTrustedOrigin, requireSession, async (req, res) => {
   try {
-    const { username } = req.params;
+    const requestedEmail = String(req.params.username || "").trim().toLowerCase();
+    const sessionEmail = String(req.authClaims?.email || "").trim().toLowerCase();
 
-    if (!username)
-      return res.status(400).json([]);
+    if (!sessionEmail) return res.status(401).json({ message: "Please sign in again." });
+    if (requestedEmail !== sessionEmail) return res.status(403).json({ message: "You can only view your own quiz results." });
 
-    const results = await QuizResult.QuizResult.find({ username }).sort({ dateTaken: -1 });
+    const results = await QuizResult.QuizResult.find({ username: sessionEmail }).sort({ dateTaken: -1 });
 
     // Always return an array
+    res.set("Cache-Control", "no-store");
     res.status(200).json(results || []);
   } catch (err) {
     console.error("Error fetching quiz scores:", err);
@@ -338,15 +357,7 @@ router.get(
 
 router.post('/google/mobile', require('../middleware/verifyGoogleMobile')(require('../firebase')), authController.googleMobileAuth);
 
-router.post('/google', [
-  body('email').isEmail().withMessage('please enter a vilad email').custom((value, { req }) => {
-    return User.findOne({ email: req.email }).then(userDoc => {
-      if (userDoc) {
-        return Promise.reject('Email already taken')
-      }
-    })
-  }).normalizeEmail(),
-], authController.googleAuth)
+router.post('/google', requireTrustedOrigin, verifyGoogleIdentity, authController.googleAuth)
 
 
 router.post("/create-checkout-session", async (req, res) => {

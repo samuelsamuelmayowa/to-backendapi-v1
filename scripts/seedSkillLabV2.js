@@ -128,12 +128,19 @@ async function main() {
     const newQuestions = questions.filter(([prompt]) => !previous.has(prompt)).map(([prompt, options, correct_option, explanation]) => {
       // Distribute the correct answers across A–D (not always option A).
       const offset = crypto.createHash("sha256").update(prompt).digest()[0] % options.length;
-      return {
-        role_id: role.id, level: null, is_active: true, category: "Role knowledge", difficulty: "entry",
-        prompt, options: [...options.slice(offset), ...options.slice(0, offset)],
-        correct_option: (correct_option - offset + options.length) % options.length,
-        explanation, points: 10, time_limit_seconds: 75,
-      };
+    return {
+  role_id: role.id,
+  level: null,
+  is_active: true,
+  category: "Role knowledge",
+  difficulty: "Entry",
+  prompt,
+  options: [...options.slice(offset), ...options.slice(0, offset)],
+  correct_option: (correct_option - offset + options.length) % options.length,
+  explanation,
+  points: 10,
+  time_limit_seconds: 75,
+};
     });
     if (newQuestions.length) {
       const { error: insertError } = await supabase.from("skill_lab_questions").insert(newQuestions);

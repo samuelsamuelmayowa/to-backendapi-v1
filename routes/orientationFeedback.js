@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 const { rateLimit } = require("express-rate-limit");
 const { createClient } = require("@supabase/supabase-js");
 const User = require("../model/user");
+const { getRequestToken } = require("../middleware/sessionCookie");
 
 const router = express.Router();
 const jwtSecret = process.env.JWT_SECRET;
@@ -28,12 +29,12 @@ const feedbackLimit = rateLimit({
 
 async function requireWebsiteAccount(req, res, next) {
   // IMPORTANT: One backslash in the regex makes \s match a whitespace character.
-  const match = /^Bearer\s+([^\s]+)$/i.exec(req.get("Authorization") || "");
-  if (!match) return res.status(401).json({ error: "Website login token required" });
+  const requestToken = getRequestToken(req);
+  if (!requestToken.token) return res.status(401).json({ error: "Website login required" });
 
   try {
     // The existing authController signs using JWT_SECRET with HS256 by default.
-    const claims = jwt.verify(match[1], jwtSecret, { algorithms: ["HS256"] });
+    const claims = jwt.verify(requestToken.token, jwtSecret, { algorithms: ["HS256"] });
     const tokenEmail = String(claims?.email || "").trim().toLowerCase();
     const userId = String(claims?.userId || "").trim();
     if (!tokenEmail && !userId) {

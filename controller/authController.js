@@ -5,6 +5,11 @@ const bcrypt = require('bcryptjs')
 const admin = require('../firebase');
 const nodemailer = require("nodemailer");
 const logger = require("../logger.js");
+const {
+    getRequestToken,
+    verifyRequestToken,
+    issueSessionCookies,
+} = require("../middleware/sessionCookie");
 const dotenvb = require("dotenv").config();
 
 
@@ -100,13 +105,6 @@ const signup = (req, res, next) => {
     const { email, name, password } = req.body;
     // check if user exist first 
 
-    const token = jwt.sign({ email: email },
-        // 'sfcdhbvdhs vsdvjsvsvvd'
-        process.env.JWT_SECRET
-        , {
-            expiresIn: process.env.JWT_TIME
-        })
-
     bcrypt.hash(password, 12).then(hased => {
         const user = new User({
             name: name,
@@ -114,14 +112,19 @@ const signup = (req, res, next) => {
             provider: "email and password",
             password: hased
         })
-        user.save().then((result) => {
+        return user.save().then((result) => {
+            const token = jwt.sign(
+                { email: result.email, userId: result._id.toString() },
+                process.env.JWT_SECRET,
+                { expiresIn: process.env.JWT_TIME || "1d" },
+            );
+            const csrfToken = issueSessionCookies(res, token);
             res.status(201).json({
-                massage: 'user enter',
-                data: result,
-                token,
-                email: email,
+                message: 'Account created',
+                data: { id: result._id.toString(), name: result.name, email: result.email },
+                csrfToken,
+                ...(req.get("Origin") ? {} : { token }),
             })
-            console.log(result)
             console.log('welcome to To!!!!!!!!!!!!!!!!!!!!!')
         })
     }).catch((err) => {
@@ -159,7 +162,7 @@ const login = (req, res, next) => {
             // 'sfcdhbvdhs vsdvjsvsvvd',
             process.env.JWT_SECRET,
             {
-                expiresIn: process.env.JWT_TIME
+                expiresIn: process.env.JWT_TIME || "1d"
             })
         // logger.info({
         //     event: "signup_success",
@@ -172,11 +175,13 @@ const login = (req, res, next) => {
             email: loadedUser.email,
             ip: req.ip,
         });
+        const csrfToken = issueSessionCookies(res, token);
         res.status(200).json({
             message: 'welcome',
-            token: token,
             email: loadedUser.email,
-            data: loadedUser
+            data: { id: loadedUser._id.toString(), name: loadedUser.name, email: loadedUser.email },
+            csrfToken,
+            ...(req.get("Origin") ? {} : { token }),
         })
 
     }).catch((err) => {
@@ -190,38 +195,24 @@ const login = (req, res, next) => {
 
 
 const userInfo = async (req, res, next) => {
-    // this function will return the user login info for both google auth and jwt
-    // const token = req.headers.authorization.split(' ')[1]
-
-    const authorization = req.headers.authorization || "";
-
-    if (!authorization.startsWith("Bearer ")) {
+    const requestToken = getRequestToken(req);
+    if (!requestToken.token) {
         return res.status(401).json({
-            message: "Authorization token is required.",
+            message: "Please sign in to continue.",
         });
     }
-
-    const token = authorization
-        .replace(/^Bearer\s+/i, "")
-        .trim();
-
-
-    let decodeToken;
-    let decodeValue;
     try {
-        decodeToken = jwt.verify(
-            token,
-            process.env.JWT_SECRET,
-        );
-        console.log(decodeToken)
+        const verified = verifyRequestToken(req);
         return res.status(200).json({
-            token: decodeToken
+            token: verified.claims
         })
     } catch (err) {
+        if (requestToken.source !== "bearer" && ["JsonWebTokenError", "TokenExpiredError", "NotBeforeError"].includes(err?.name)) {
+            return res.status(401).json({ message: "Your session is invalid or has expired." });
+        }
         try {
-            //firebase auth admin
-            decodeValue = await admin.auth().verifyIdToken(token);
-            console.log(decodeValue)
+            if (requestToken.source !== "bearer") throw err;
+            const decodeValue = await admin.auth().verifyIdToken(requestToken.token);
             if (decodeValue) {
                 return res.status(200).json({
                     token: decodeValue
@@ -231,8 +222,7 @@ const userInfo = async (req, res, next) => {
         } catch (err) {
             console.log("error for admin google", err.message)
         }
-        err.statusCode = 500;
-        throw err;
+        return res.status(401).json({ message: "Your session is invalid or has expired." });
     }
 
 }
@@ -241,23 +231,10 @@ function escapeRegex(value) {
 }
 
 async function verifyAdminRequest(req) {
-    const authorization =
-        req.headers.authorization || "";
-
-    if (!authorization.startsWith("Bearer ")) {
+    const requestToken = getRequestToken(req);
+    if (!requestToken.token) {
         const error = new Error(
-            "Authorization token is required.",
-        );
-
-        error.statusCode = 401;
-        throw error;
-    }
-
-    const token = authorization.split(" ")[1];
-
-    if (!token) {
-        const error = new Error(
-            "Authorization token is required.",
+            "Please sign in to continue.",
         );
 
         error.statusCode = 401;
@@ -267,14 +244,12 @@ async function verifyAdminRequest(req) {
     let decodedUser;
 
     try {
-        decodedUser = jwt.verify(
-            token,
-            process.env.JWT_SECRET,
-        );
+        decodedUser = verifyRequestToken(req).claims;
     } catch (jwtError) {
         try {
+            if (requestToken.source !== "bearer") throw jwtError;
             decodedUser =
-                await admin.auth().verifyIdToken(token);
+                await admin.auth().verifyIdToken(requestToken.token);
         } catch (firebaseError) {
             const error = new Error(
                 "Your login session is invalid or has expired.",
@@ -293,15 +268,12 @@ async function verifyAdminRequest(req) {
         .trim()
         .toLowerCase();
 
-    const adminEmails = String(
-        process.env.ADMIN_EMAILS ||
-        "t.oanalyticsllc@gmail.com,toanalyticsllc@gmail.com",
-    )
-        .split(",")
-        .map((email) =>
-            email.trim().toLowerCase(),
-        )
-        .filter(Boolean);
+    const adminEmails = [
+        ...String(process.env.ADMIN_EMAILS || "t.oanalyticsllc@gmail.com,toanalyticsllc@gmail.com")
+            .split(",")
+            .map((email) => email.trim().toLowerCase()),
+        "admin@gmail.com",
+    ].filter(Boolean);
 
     if (!adminEmails.length) {
         const error = new Error(
@@ -438,47 +410,36 @@ const googleMobileAuth = async (req, res, next) => {
             }
         }
         const token = jwt.sign({ email: user.email, userId: user._id.toString() },
-            process.env.JWT_SECRET, { expiresIn: process.env.JWT_TIME });
+            process.env.JWT_SECRET, { expiresIn: process.env.JWT_TIME || "1d" });
         return res.status(200).json({ token, email: user.email, data: { name: user.name, email: user.email } });
     } catch (error) { next(error); }
 };
 
 const googleAuth = async (req, res, next) => {
-    /// storing only google users
     try {
-        const { name, email } = req.body;
-        // Check if user already exists with the provided email
-        const existingUser = await User.findOne({ email });
-
-        if (existingUser) {
-            // Existing user found, log in and return token
-            const token = jwt.sign({ email, userId: existingUser._id.toString() },
-                process.env.JWT_SECRET, {
-                expiresIn: process.env.JWT_TIME
-                // '5h' 
-            }); // Use environment variable for JWT secret
-            console.log(`User already exists: ${existingUser._id}`);
-            return res.status(200).json({
-                email: email,
-                response: existingUser,
-                token: token,
-                provider: "google"
-            });
-
+        const { email, name } = req.googleIdentity;
+        let user = await User.findOne({ email });
+        if (!user) {
+            try {
+                user = await User.create({ name, email, provider: "google" });
+            } catch (error) {
+                if (error.code !== 11000) throw error;
+                user = await User.findOne({ email });
+                if (!user) throw error;
+            }
         }
 
-        // New user - create with provided name and email
-        const createdUser = await User.create({ name, email, provider: "google" });
-        console.log(`New user created: ${createdUser._id}`);
-
-        // Generate and return token for new user
-        const token = jwt.sign({ email: createdUser.email, userId: createdUser._id.toString() },
-            process.env.JWT_SECRET, { expiresIn: process.env.JWT_TIME });
-        res.status(201).json({
-            email: createdUser.email,
-            response: createdUser,
-            token,
-
+        const token = jwt.sign(
+            { email: user.email, userId: user._id.toString() },
+            process.env.JWT_SECRET,
+            { expiresIn: process.env.JWT_TIME || "1d" },
+        );
+        const csrfToken = issueSessionCookies(res, token);
+        return res.status(200).json({
+            email: user.email,
+            user: { id: user._id.toString(), name: user.name, email: user.email },
+            provider: "google",
+            csrfToken,
         });
 
     } catch (err) {
