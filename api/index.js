@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const app = express();
 const mongoose = require("mongoose");
+const { initializeSplunkTrainingStore } = require("../services/splunkTrainingStore");
 const bodyParser = require("body-parser");
 // Webhook MUST come before JSON parsing
 
@@ -55,6 +56,12 @@ mongoose
   )
   .then((res) => console.log("database connected!!!"))
   .catch((err) => console.log(err.message));
+
+if (process.env.SPLUNK_TRAINING_DATABASE_URL) {
+  initializeSplunkTrainingStore()
+    .then(() => console.log("Splunk training database connected"))
+    .catch(() => console.error("Splunk training database connection failed; catalog and search remain unavailable."));
+}
 
 app.use(cookieParser());
 app.set("cookie.sameSite", "Strict"); // Applies only to legacy cookies; auth cookies set explicit options.

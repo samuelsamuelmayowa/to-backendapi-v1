@@ -4,7 +4,6 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const express = require("express");
 const { readZipEntries, ZipSafetyError } = require("../utils/safeZip");
 const { makeDatasetGroups } = require("../services/splunkTutorialImporter");
 const { executeTutorialSearch } = require("../services/splunkTutorialSearch");
@@ -139,7 +138,7 @@ test("result mode survives sorting after statistics and timecharts", () => {
   assert.equal(resultMode("index=buttercup_web | stats count by status | table status count"), "table");
 });
 
-test("catalog and search HTTP routes run on records parsed from the supplied ZIPs", async () => {
+test("catalog and search controllers return records parsed from the supplied ZIPs", async () => {
   const groups = makeDatasetGroups(fs.readFileSync(tutorialZipPath), fs.readFileSync(pricesZipPath));
   const datasetsByIndex = new Map(groups.map((group) => [group.index, {
     ...group.definition,
@@ -173,45 +172,34 @@ test("catalog and search HTTP routes run on records parsed from the supplied ZIP
   SplunkLabDataset.findOne = ({ index }) => ({ lean: async () => datasetsByIndex.get(index) || null });
   SplunkLabEvent.find = (filter) => ({
     limit() { return this; },
+    maxTimeMS() { return this; },
     lean: async () => eventsBySlug.get(filter.datasetSlug) || [],
   });
 
-  const app = express();
-  app.use(express.json());
-  app.use("/api/splunk-lab", require("../routes/splunkLab").createForTests({
-    studentAuth: (req, res, next) => { req.splunkStudent = { ownerId: "507f1f77bcf86cd799439011" }; req.skipSearchHistory = true; next(); },
-  }));
-  const server = app.listen(0, "127.0.0.1");
+  const controller = require("../controller/splunkSearch");
+  const makeResponse = () => ({ statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } });
   try {
-    await new Promise((resolve, reject) => {
-      server.once("listening", resolve);
-      server.once("error", reject);
-    });
-    const baseUrl = `http://127.0.0.1:${server.address().port}/api/splunk-lab`;
-    const catalogResponse = await fetch(`${baseUrl}/catalog`);
-    assert.equal(catalogResponse.status, 200);
-    const catalog = (await catalogResponse.json()).data;
+    const catalogResponse = makeResponse();
+    await controller.listCatalog({}, catalogResponse, (error) => { throw error; });
+    assert.equal(catalogResponse.statusCode, 200);
+    const catalog = catalogResponse.body.data;
     assert.equal(catalog.length, 4);
     assert.equal(catalog.find((dataset) => dataset.index === "buttercup_web").eventCount, 39532);
 
-    const searchResponse = await fetch(`${baseUrl}/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const searchResponse = makeResponse();
+    await controller.search({ splunkStudent: { ownerId: "507f1f77bcf86cd799439011" }, skipSearchHistory: true, body: {
         query: "index=buttercup_web status>=400 | stats count by status",
         timeRange: "all",
         page: 1,
         pageSize: 20,
-      }),
-    });
-    assert.equal(searchResponse.status, 200);
-    const result = (await searchResponse.json()).data;
+      } }, searchResponse, (error) => { throw error; });
+    assert.equal(searchResponse.statusCode, 200);
+    const result = searchResponse.body.data;
     assert.equal(result.status, "complete");
     assert.equal(result.scanned, 39532);
     assert.ok(result.totalRows > 0);
     assert.ok(result.rows.every((row) => row.status >= 400 && Number.isFinite(row.count)));
   } finally {
-    await new Promise((resolve) => server.close(resolve));
     SplunkLabDataset.find = originalDatasetFind;
     SplunkLabDataset.findOne = originalDatasetFindOne;
     SplunkLabEvent.find = originalEventFind;

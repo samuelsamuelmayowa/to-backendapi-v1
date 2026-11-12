@@ -39,6 +39,22 @@ const missions = [
   },
 ];
 
+function missionsForIndexes(availableIndexes, progressByMission = new Map()) {
+  const indexes = new Set(availableIndexes);
+  const chooseIndex = (preferred, original) => indexes.has(preferred) ? preferred : indexes.has(original) ? original : original;
+  const webIndex = chooseIndex("toa_web", "buttercup_web");
+  const authIndex = chooseIndex("toa_auth", "buttercup_auth");
+  return missions.map((mission) => ({
+    ...mission,
+    title: mission.title.replace(/Buttercup/gi, "training"),
+    scenario: mission.scenario.replace(/Buttercup/gi, "training"),
+    objectives: mission.objectives.map((objective) => objective.replace(/Buttercup/gi, "training")),
+    expectedOutcome: mission.expectedOutcome.replace(/Buttercup/gi, "training"),
+    starterSPL: mission.starterSPL.replace(/buttercup_web/g, webIndex).replace(/buttercup_auth/g, authIndex),
+    progress: progressByMission.get(mission.id) || null,
+  }));
+}
+
 const owner = (req) => req.splunkStudent.ownerId;
 const cleanText = (value, max) => String(value ?? "").trim().slice(0, max);
 const idFilter = (req) => mongoose.Types.ObjectId.isValid(req.params.id) ? { _id: req.params.id, ownerId: owner(req) } : null;
@@ -305,9 +321,13 @@ exports.listMissions = async (req, res, next) => {
   try {
     const progress = await SplunkMissionProgress.find({ ownerId: owner(req) }).lean();
     const byMission = new Map(progress.map((item) => [item.missionId, item]));
-    res.json({ data: missions.map((mission) => ({ ...mission, progress: byMission.get(mission.id) || null })) });
+    const Dataset = require("../services/splunkTrainingStore").getDatasetModel();
+    const availableIndexes = (await Dataset.find({ status: "ready" }).select("index").lean()).map((item) => item.index);
+    res.json({ data: missionsForIndexes(availableIndexes, byMission) });
   } catch (error) { next(error); }
 };
+
+exports.missionsForIndexes = missionsForIndexes;
 exports.submitMission = async (req, res, next) => {
   try {
     const mission = missions.find((item) => item.id === req.params.missionId);
@@ -334,12 +354,12 @@ exports.submitMission = async (req, res, next) => {
       catch (error) { return res.status(error.status || 422).json({ message: error.message, command: error.command }); }
       if (mission.id === "buttercup-explorer") {
         const index = queryIndex(query);
-        passed = index === "buttercup_web" && result.rows.length > 0 && result.rows.every((row) => Number(row.status) >= 400) && result.rows.some((row) => row._raw || row.endpoint);
-        feedback = passed ? `Found ${result.totalRows.toLocaleString()} real web-error events. Review their timestamps and endpoints to summarize the incident.` : "Use the Buttercup web index and return event evidence for HTTP errors (status 400 or higher), including a time or endpoint field.";
+        passed = ["buttercup_web", "toa_web"].includes(index) && result.rows.length > 0 && result.rows.every((row) => Number(row.status) >= 400) && result.rows.some((row) => row._raw || row.endpoint);
+        feedback = passed ? `Found ${result.totalRows.toLocaleString()} stored web-error events. Review their timestamps and endpoints to summarize the incident.` : "Use a stored training web index and return event evidence for HTTP errors (status 400 or higher), including a time or endpoint field.";
       } else {
         const index = queryIndex(query);
-        if (index === "buttercup_auth") {
-          const expected = await runStoredSPL("index=buttercup_auth action=failure | stats count by user", { timeRange: "all", pageSize: 500 });
+        if (["buttercup_auth", "toa_auth"].includes(index)) {
+          const expected = await runStoredSPL(`index=${index} action=failure | stats count by user`, { timeRange: "all", pageSize: 500 });
           const fieldsPresent = result.rows.length > 0 && result.rows.every((row) => Object.hasOwn(row, "user") && Number.isFinite(Number(row.count)));
           passed = fieldsPresent && sameRows(result.rows, expected.rows);
         }

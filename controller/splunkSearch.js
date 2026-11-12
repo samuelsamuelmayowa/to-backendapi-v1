@@ -1,13 +1,14 @@
 "use strict";
 
 const SplunkSearchHistory = require("../model/SplunkSearchHistory");
-const SplunkLabDataset = require("../model/SplunkLabDataset");
+const { getDatasetModel, isTrainingStoreReady, trainingStoreUnavailableError } = require("../services/splunkTrainingStore");
 const { runStoredSPL } = require("../services/splunkStudentSearch");
 const { SplError } = require("../services/splEngine");
 
 exports.listCatalog = async (req, res, next) => {
   try {
-    const datasets = await SplunkLabDataset.find({ status: "ready" })
+    if (!isTrainingStoreReady()) return res.status(503).json({ message: trainingStoreUnavailableError().message });
+    const datasets = await getDatasetModel().find({ status: "ready" })
       .select("slug name description index sourceCategory sourcetypes fields eventCount timestampRange dataOrigin isSynthetic distributionStatus")
       .sort({ name: 1 }).lean();
     res.json({ data: datasets });

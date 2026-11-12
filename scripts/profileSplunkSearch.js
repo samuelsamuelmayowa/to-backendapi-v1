@@ -26,7 +26,6 @@ async function main() {
 
     const filter = { index, datasetSlug: dataset.slug, datasetVersion: dataset.version };
     const query = `index=${index} | stats count`;
-    const explain = await Event.find(filter).limit(MAX_SCAN + 1).explain("executionStats");
     const fetchStart = performance.now();
     const records = await Event.find(filter).limit(MAX_SCAN + 1).lean();
     const mongoFetchMs = performance.now() - fetchStart;
@@ -39,6 +38,8 @@ async function main() {
     const splStart = performance.now();
     const result = executeTutorialSearch({ query, index, dataset, events, timeRange: "all" });
     const splExecutionMs = performance.now() - splStart;
+    const baselineTotalMs = performance.now() - totalStart;
+    const explain = await Event.find(filter).limit(MAX_SCAN + 1).explain("executionStats");
     const countExplain = await Event.collection
       .aggregate([{ $match: filter }, { $count: "count" }], { maxTimeMS: 15000 })
       .explain("executionStats");
@@ -55,7 +56,7 @@ async function main() {
       mongoFetchMs: +mongoFetchMs.toFixed(1),
       javascriptMaterializeMs: +materializeMs.toFixed(1),
       splExecutionMs: +splExecutionMs.toFixed(1),
-      baselineTotalMs: +(performance.now() - totalStart).toFixed(1),
+      baselineTotalMs: +baselineTotalMs.toFixed(1),
       optimizedCountTotalMs: +optimizedTotalMs.toFixed(1),
       optimizedCountMs: optimizedResult.elapsedMs,
       docsExamined: explain.executionStats.totalDocsExamined,

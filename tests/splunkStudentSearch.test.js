@@ -21,7 +21,7 @@ function withModelStubs({ count = 7, events = [] } = {}, run) {
   };
   SplunkLabEvent.find = () => {
     findCalls += 1;
-    return { limit() { return this; }, lean: async () => events };
+    return { limit() { return this; }, maxTimeMS() { return this; }, lean: async () => events };
   };
   return Promise.resolve(run({ filters, get findCalls() { return findCalls; } }))
     .finally(() => {

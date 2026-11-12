@@ -7,3 +7,5 @@
 .env
 
 /serviceAccunt.json
+/serviceAccount.json
+/data/*.zip

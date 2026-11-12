@@ -1,8 +1,7 @@
 "use strict";
 
 const { performance } = require("node:perf_hooks");
-const SplunkLabDataset = require("../model/SplunkLabDataset");
-const SplunkLabEvent = require("../model/SplunkLabEvent");
+const { getDatasetModel, getEventModel, isTrainingStoreReady, trainingStoreUnavailableError } = require("./splunkTrainingStore");
 const { executeTutorialSearch, queryIndex, timeRangeStart, MAX_SCAN, MAX_PAGE_SIZE } = require("./splunkTutorialSearch");
 
 function isUnfilteredCount(query, index) {
@@ -15,10 +14,13 @@ function resultPageSize(value) {
 }
 
 async function runStoredSPL(query, options = {}) {
+  if (!isTrainingStoreReady()) throw trainingStoreUnavailableError();
+  const SplunkLabDataset = getDatasetModel();
+  const SplunkLabEvent = getEventModel();
   const index = queryIndex(query);
   const dataset = await SplunkLabDataset.findOne({ index, status: "ready" }).lean();
   if (!dataset) {
-    const error = new Error(`Index ${index} is not available. Import the local tutorial archives first.`);
+    const error = new Error(`Index ${index} is not available in the stored dataset catalog. Select an available index or contact your instructor.`);
     error.status = 404;
     throw error;
   }
@@ -58,7 +60,7 @@ async function runStoredSPL(query, options = {}) {
     index,
     datasetSlug: dataset.slug,
     datasetVersion: dataset.version,
-  }).limit(MAX_SCAN + 1).lean();
+  }).limit(MAX_SCAN + 1).maxTimeMS(15000).lean();
   if (records.length > MAX_SCAN) {
     const error = new Error("This index exceeds the simulator scan limit. Narrow the search and try again.");
     error.status = 422;

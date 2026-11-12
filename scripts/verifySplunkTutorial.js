@@ -116,6 +116,22 @@ async function main() {
     });
     assert.equal(authSearch.scanned, 40088);
     assert.ok(authSearch.totalRows > 0);
+    const exactCounts = [
+      ["buttercup_web", 39532],
+      ["buttercup_auth", 40088],
+      ["buttercup_sales", 30244],
+    ];
+    for (const [index, expectedCount] of exactCounts) {
+      const countResult = await post("/search", {
+        query: `index=${index} | stats count`,
+        timeRange: "all",
+        page: 1,
+        pageSize: 10,
+      });
+      assert.equal(countResult.rows[0]?.count, expectedCount, `${index} count SPL should match imported records`);
+      assert.equal(countResult.scanned, expectedCount, `${index} count SPL should account for every stored event`);
+      console.log(`${index} | stats count: ${countResult.rows[0].count.toLocaleString()} events, ${countResult.elapsedMs} ms`);
+    }
     console.log(`HTTP API: catalog 4 datasets; events 39,532; stats ${statistics.totalRows} groups; 7d filter ${historical.totalRows} rows; pagination passed; auth groups ${authSearch.totalRows}`);
     console.log(`MongoDB event collection: ${totalStored.toLocaleString()} total active records, no stale or duplicate rows detected.`);
   } finally {
