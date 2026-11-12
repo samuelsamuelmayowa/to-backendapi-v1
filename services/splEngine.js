@@ -90,18 +90,84 @@ function stats(rows, source) {
 }
 
 function evaluateExpression(row, expression) {
-  let value = expression.trim();
-  const round = value.match(/^round\((.+),\s*(\d+)\)$/i);
-  if (round) return Number(evaluateExpression(row, round[1]).toFixed(Number(round[2])));
-  value = value.replace(/\b[A-Za-z_]\w*\b/g, (field) => {
-    const found = valueFor(row, field);
-    return found === undefined ? field : Number(found);
-  });
-  if (!/^[\d+\-*/().\s]+$/.test(value)) return cleanValue(expression);
-  return Function(`"use strict"; return (${value})`)();
+  const input = String(expression || "").trim();
+  if (!input || input.length > 256) throw new SplError("Eval expressions must contain 1 to 256 characters.", "eval");
+  const literal = input.match(/^("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')$/);
+  if (literal) return cleanValue(input.replace(/\\([\\"'])/g, "$1"));
+
+  const tokens = [];
+  const tokenPattern = /\s*(?:(\d+(?:\.\d+)?|\.\d+)|([A-Za-z_]\w*)|([()+\-*/ ,]))/gy;
+  let cursor = 0;
+  while (cursor < input.length) {
+    tokenPattern.lastIndex = cursor;
+    const match = tokenPattern.exec(input);
+    if (!match) throw new SplError("Eval supports numeric fields, arithmetic, parentheses, and round(value, places).", "eval");
+    tokens.push(match[1] !== undefined ? { type: "number", value: Number(match[1]) } : match[2] !== undefined ? { type: "identifier", value: match[2] } : { type: "symbol", value: match[3].trim() });
+    cursor = tokenPattern.lastIndex;
+  }
+  let position = 0;
+  const peek = () => tokens[position];
+  const take = () => tokens[position++];
+  const parsePrimary = () => {
+    const token = take();
+    if (!token) throw new SplError("Eval expression ended unexpectedly.", "eval");
+    if (token.type === "number") return token.value;
+    if (token.type === "symbol" && token.value === "(") {
+      const value = parseSum();
+      if (take()?.value !== ")") throw new SplError("Eval expression has an unmatched parenthesis.", "eval");
+      return value;
+    }
+    if (token.type !== "identifier") throw new SplError("Eval expected a number or field name.", "eval");
+    if (peek()?.value === "(") {
+      take();
+      if (token.value.toLowerCase() !== "round") throw new SplError(`Eval function is not supported: ${token.value}`, "eval");
+      const value = parseSum();
+      if (take()?.value !== ",") throw new SplError("Use round(value, decimal_places).", "eval");
+      const places = parseSum();
+      if (!Number.isInteger(places) || places < 0 || places > 10 || take()?.value !== ")") throw new SplError("round decimal places must be from 0 to 10.", "eval");
+      return Number(value.toFixed(places));
+    }
+    const fieldValue = valueFor(row, token.value);
+    const number = Number(fieldValue);
+    if (fieldValue === undefined || fieldValue === null || fieldValue === "" || !Number.isFinite(number)) {
+      throw new SplError(`Eval field is not a numeric value: ${token.value}`, "eval");
+    }
+    return number;
+  };
+  const parseUnary = () => {
+    if (peek()?.value === "+") { take(); return parseUnary(); }
+    if (peek()?.value === "-") { take(); return -parseUnary(); }
+    return parsePrimary();
+  };
+  const parseProduct = () => {
+    let value = parseUnary();
+    while (peek()?.value === "*" || peek()?.value === "/") {
+      const operator = take().value;
+      const right = parseUnary();
+      if (operator === "/" && right === 0) throw new SplError("Eval cannot divide by zero.", "eval");
+      value = operator === "*" ? value * right : value / right;
+    }
+    return value;
+  };
+  const parseSum = () => {
+    let value = parseProduct();
+    while (peek()?.value === "+" || peek()?.value === "-") {
+      const operator = take().value;
+      const right = parseProduct();
+      value = operator === "+" ? value + right : value - right;
+    }
+    return value;
+  };
+  const result = parseSum();
+  if (position !== tokens.length) throw new SplError("Eval expression has unexpected trailing input.", "eval");
+  if (!Number.isFinite(result)) throw new SplError("Eval expression must produce a finite number.", "eval");
+  return result;
 }
 
 function bucketTime(value, span) {
+  const duration = span.endsWith("h") ? Number(span.slice(0, -1)) * 60 * 60 * 1000 : Number(span.replace("m", "")) * 60 * 1000;
+  const timestamp = new Date(value).getTime();
+  if (Number.isFinite(timestamp) && duration > 0) return new Date(Math.floor(timestamp / duration) * duration).toISOString();
   const match = String(value).match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (!match) return value;
   const minutes = Number(match[1]) * 60 + Number(match[2]);
@@ -111,15 +177,17 @@ function bucketTime(value, span) {
 }
 
 function timechart(rows, command) {
-  const match = command.match(/^timechart\s+span=(\d+[mh])\s+(sum|count)\(([^)]*)\)\s+by\s+(\w+)$/i);
-  if (!match) throw new SplError("Use: timechart span=5m sum(field) BY field", "timechart");
+  const match = command.match(/^timechart\s+span=(\d+[mh])\s+(sum|count)(?:\(([^)]*)\))?(?:\s+by\s+(\w+))?$/i);
+  if (!match) throw new SplError("Use: timechart span=5m count [BY field] or sum(field) [BY field]", "timechart");
   const [, span, fn, valueField, byField] = match;
   const buckets = new Map();
   rows.forEach((row) => {
     const time = bucketTime(valueFor(row, "_time"), span);
     if (!buckets.has(time)) buckets.set(time, { _time: time });
-    const output = buckets.get(time); const series = valueFor(row, byField);
-    output[series] = (output[series] || 0) + (fn.toLowerCase() === "count" ? 1 : Number(valueFor(row, valueField)) || 0);
+    const output = buckets.get(time); const series = byField ? valueFor(row, byField) : fn.toLowerCase() === "count" ? "count" : valueField;
+    const value = fn.toLowerCase() === "count" ? (valueField ? (valueFor(row, valueField) === undefined ? 0 : 1) : 1) : Number(valueFor(row, valueField)) || 0;
+    if (!byField && fn.toLowerCase() === "count") output.count = (output.count || 0) + value;
+    else output[series] = (output[series] || 0) + value;
   });
   return [...buckets.values()].sort((a, b) => a._time.localeCompare(b._time));
 }

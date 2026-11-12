@@ -362,7 +362,7 @@ app.use((error, req, res, next) => {
   const message = error.message;
   res.status(status).json({ message: message, error: "server error" });
 });
-const port = process.env.PORT || 9000;
+const port = process.env.PORT || 8000;
 const server = app.listen(port, () => {
   console.log("SERVER IS RUNNING", port);
 });
