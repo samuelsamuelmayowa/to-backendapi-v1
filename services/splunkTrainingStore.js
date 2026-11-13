@@ -8,6 +8,10 @@ let trainingConnection = null;
 let connectionError = null;
 let initialization = null;
 
+function usesSupabaseTrainingStore() {
+  return String(process.env.SPLUNK_TRAINING_STORE || "").toLowerCase() === "supabase";
+}
+
 function isDedicatedTrainingStoreConfigured() {
   return Boolean(process.env.SPLUNK_TRAINING_DATABASE_URL);
 }
@@ -18,6 +22,7 @@ function activeConnection() {
 }
 
 function isTrainingStoreReady() {
+  if (usesSupabaseTrainingStore()) return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
   const connection = activeConnection();
   return !isDedicatedTrainingStoreConfigured() || connection?.readyState === 1;
 }
@@ -35,6 +40,11 @@ function getEventModel() {
 }
 
 function initializeSplunkTrainingStore() {
+  if (usesSupabaseTrainingStore()) {
+    const store = require("./splunkSupabaseTrainingStore");
+    initialization = store.initialize();
+    return initialization;
+  }
   const uri = process.env.SPLUNK_TRAINING_DATABASE_URL;
   if (!uri) return Promise.resolve(false);
   if (initialization) return initialization;
@@ -63,4 +73,5 @@ module.exports = {
   isDedicatedTrainingStoreConfigured,
   isTrainingStoreReady,
   trainingStoreUnavailableError,
+  usesSupabaseTrainingStore,
 };

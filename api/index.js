@@ -1,8 +1,11 @@
 require("dotenv").config();
 const express = require("express");
 const app = express();
+// Render terminates client traffic at its proxy before forwarding to Express.
+// Trust the single proxy hop so express-rate-limit can safely read req.ip.
+app.set("trust proxy", 1);
 const mongoose = require("mongoose");
-const { initializeSplunkTrainingStore } = require("../services/splunkTrainingStore");
+const { initializeSplunkTrainingStore, usesSupabaseTrainingStore } = require("../services/splunkTrainingStore");
 const bodyParser = require("body-parser");
 // Webhook MUST come before JSON parsing
 
@@ -57,10 +60,11 @@ mongoose
   .then((res) => console.log("database connected!!!"))
   .catch((err) => console.log(err.message));
 
-if (process.env.SPLUNK_TRAINING_DATABASE_URL) {
+if (usesSupabaseTrainingStore() || process.env.SPLUNK_TRAINING_DATABASE_URL) {
+  const trainingStoreName = usesSupabaseTrainingStore() ? "Supabase" : "MongoDB";
   initializeSplunkTrainingStore()
-    .then(() => console.log("Splunk training database connected"))
-    .catch(() => console.error("Splunk training database connection failed; catalog and search remain unavailable."));
+    .then(() => console.log(`Splunk training store connected (${trainingStoreName}).`))
+    .catch(() => console.error(`Splunk training store connection failed (${trainingStoreName}); catalog and search remain unavailable.`));
 }
 
 app.use(cookieParser());

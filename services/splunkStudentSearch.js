@@ -1,7 +1,7 @@
 "use strict";
 
 const { performance } = require("node:perf_hooks");
-const { getDatasetModel, getEventModel, isTrainingStoreReady, trainingStoreUnavailableError } = require("./splunkTrainingStore");
+const { getDatasetModel, getEventModel, isTrainingStoreReady, trainingStoreUnavailableError, usesSupabaseTrainingStore } = require("./splunkTrainingStore");
 const { executeTutorialSearch, queryIndex, timeRangeStart, MAX_SCAN, MAX_PAGE_SIZE } = require("./splunkTutorialSearch");
 
 function isUnfilteredCount(query, index) {
@@ -15,6 +15,7 @@ function resultPageSize(value) {
 
 async function runStoredSPL(query, options = {}) {
   if (!isTrainingStoreReady()) throw trainingStoreUnavailableError();
+  if (usesSupabaseTrainingStore()) return runSupabaseStoredSPL(query, options);
   const SplunkLabDataset = getDatasetModel();
   const SplunkLabEvent = getEventModel();
   const index = queryIndex(query);
@@ -79,6 +80,42 @@ async function runStoredSPL(query, options = {}) {
     page: options.page,
     pageSize: Math.min(MAX_PAGE_SIZE, Number(options.pageSize) || 100),
   });
+}
+
+async function runSupabaseStoredSPL(query, options) {
+  const { countEvents, fetchEvents, getReadyDataset } = require("./splunkSupabaseTrainingStore");
+  const index = queryIndex(query);
+  const dataset = await getReadyDataset(index);
+  if (!dataset) {
+    const error = new Error(`Index ${index} is not available in the stored dataset catalog. Select an available index or contact your instructor.`);
+    error.status = 404;
+    throw error;
+  }
+  const timeRange = options.timeRange || "all";
+  const start = timeRangeStart(timeRange);
+  const end = Date.now();
+  if (isUnfilteredCount(query, index)) {
+    const countStarted = performance.now();
+    const count = await countEvents(dataset, start, end);
+    const elapsedMs = Math.max(0, Math.round(performance.now() - countStarted));
+    if (count > MAX_SCAN) {
+      const error = new Error("This index exceeds the simulator scan limit. Narrow the search and try again.");
+      error.status = 422;
+      throw error;
+    }
+    return {
+      rows: [{ count }], count: 1, totalRows: 1, scanned: count, elapsedMs, index,
+      dataset: { slug: dataset.slug, name: dataset.name }, mode: "statistics", status: "complete",
+      warnings: [], trace: [], page: 1, pageSize: resultPageSize(options.pageSize), totalPages: 1, truncated: false,
+    };
+  }
+  const records = await fetchEvents(dataset, start, end, MAX_SCAN + 1);
+  if (records.length > MAX_SCAN) {
+    const error = new Error("This index exceeds the simulator scan limit. Narrow the search and try again.");
+    error.status = 422;
+    throw error;
+  }
+  return executeTutorialSearch({ query, index, dataset, events: records, timeRange, page: options.page, pageSize: options.pageSize });
 }
 
 module.exports = { runStoredSPL };

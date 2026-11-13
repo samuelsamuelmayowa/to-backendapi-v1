@@ -11,6 +11,8 @@
     "profile:splunk-search": "node scripts/profileSplunkSearch.js",
     "seed:splunk-staging-synthetic": "node scripts/seedSplunkStagingSynthetic.js",
     "verify:splunk-staging-data": "node scripts/verifySplunkStagingData.js",
+    "seed:splunk-supabase-synthetic": "node scripts/seedSplunkSupabaseSynthetic.js",
+    "verify:splunk-supabase-data": "node scripts/verifySplunkSupabaseSynthetic.js",
     "migrate:splunk-approved-to-staging": "node scripts/migrateApprovedButtercupToStaging.js",
     "test:splunk-data": "node --test tests/splunkTutorialImporter.test.js",
     "test:splunk-student-search": "node --test tests/splunkStudentSearch.test.js",

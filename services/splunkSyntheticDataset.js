@@ -106,4 +106,4 @@ async function seedSyntheticTrainingData({ Dataset, Event, eventsPerDataset }) {
   return output;
 }
 
-module.exports = { DATASETS, FULL_DATASET_COUNTS, VERSION, buildSyntheticTrainingData, seedSyntheticTrainingData };
+module.exports = { DATASETS, FULL_DATASET_COUNTS, VERSION, buildSyntheticTrainingData, makeEvent, seedSyntheticTrainingData };
