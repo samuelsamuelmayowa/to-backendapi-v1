@@ -12,6 +12,8 @@ test("builds deterministic original datasets and supports SPL training searches"
   assert.equal(Object.values(FULL_DATASET_COUNTS).reduce((sum, count) => sum + count, 0), 109880);
   const data = buildSyntheticTrainingData();
   assert.deepEqual(data.map(({ dataset, events }) => [dataset.index, events.length]), [["toa_web", 39532], ["toa_auth", 40088], ["toa_sales", 30244], ["toa_prices", 16]]);
+  assert.match(data[0].events[0]._id, /^[a-f0-9]{24}$/);
+  assert.equal(data[0].events[0]._id, buildSyntheticTrainingData(2)[0].events[0]._id);
   assert.deepEqual(buildSyntheticTrainingData(2)[0].events, buildSyntheticTrainingData(2)[0].events);
   const web = data[0];
   const allWeb = executeTutorialSearch({ query: "index=toa_web | stats count", index: "toa_web", dataset: web.dataset, events: web.events, timeRange: "all", now: Date.UTC(2026, 0, 1) });

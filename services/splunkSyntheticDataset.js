@@ -1,5 +1,7 @@
 "use strict";
 
+const { createHash } = require("node:crypto");
+
 const VERSION = "toa-training-v1";
 const BASE_TIME = Date.UTC(2025, 0, 1, 12, 0, 0);
 const FULL_DATASET_COUNTS = Object.freeze({ toa_web: 39532, toa_auth: 40088, toa_sales: 30244, toa_prices: 16 });
@@ -14,7 +16,9 @@ const DATASETS = [
 function makeEvent(dataset, number) {
   const time = new Date(BASE_TIME + number * 60_000);
   const common = {
-    _id: `${VERSION}-${dataset.index}-${String(number).padStart(4, "0")}`,
+    // Mongoose's default _id is ObjectId. Keep a deterministic 24-hex id so
+    // bulkWrite can cast it and repeat seeding remains idempotent.
+    _id: createHash("sha256").update(`${VERSION}-${dataset.index}-${number}`).digest("hex").slice(0, 24),
     datasetSlug: dataset.slug,
     datasetVersion: VERSION,
     _time: time,
