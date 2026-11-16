@@ -4,6 +4,9 @@ const controller = require("../controller/splunkStudent");
 const router = express.Router();
 
 router.get("/work", controller.getWork);
+router.get("/soc", controller.getSocScenario);
+router.post("/soc", controller.startSocScenario);
+router.post("/soc/report", controller.submitSocReport);
 router.post("/work/migrate", controller.migrateLocalWork);
 router.get("/work/history", controller.listHistory);
 router.post("/work/history", controller.createLocalHistory);

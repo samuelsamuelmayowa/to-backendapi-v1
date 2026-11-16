@@ -6,7 +6,7 @@ const schema = new Schema({
   query: { type: String, required: true, maxlength: 3000 },
   index: { type: String, default: "", maxlength: 80 },
   source: { type: String, enum: ["stored", "local"], default: "stored" },
-  timeRange: { type: String, enum: ["all", "24h", "7d"], default: "all" },
+  timeRange: { type: String, enum: ["all", "5m", "15m", "60m", "24h", "7d"], default: "all" },
   status: { type: String, enum: ["complete", "error"], required: true },
   resultCount: { type: Number, default: 0, min: 0 },
   resultRows: { type: Number, default: 0, min: 0 },

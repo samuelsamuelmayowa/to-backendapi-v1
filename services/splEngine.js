@@ -200,6 +200,7 @@ function executeSpl(events, query, metadata = {}) {
   if (indexMatch && metadata.index && cleanValue(indexMatch[1]).toLowerCase() !== metadata.index.toLowerCase()) rows = [];
   if (sourceMatch && metadata.sourcetype && cleanValue(sourceMatch[1]).toLowerCase() !== metadata.sourcetype.toLowerCase()) rows = [];
   rows = filterRows(rows, base.replace(/\b(?:index|sourcetype)\s*=\s*[^\s]+/gi, ""));
+  const matchedEvents = rows.length;
 
   for (const raw of commands) {
     const command = raw.trim();
@@ -222,7 +223,7 @@ function executeSpl(events, query, metadata = {}) {
     else if (/^dedup\s+/i.test(command)) { const fields = command.replace(/^dedup\s+/i, "").split(/\s+/); const seen = new Set(); rows = rows.filter((row) => { const key = fields.map((field) => valueFor(row, field)).join("\u0001"); if (seen.has(key)) return false; seen.add(key); return true; }); }
     else throw new SplError(`Command not supported yet: ${command.split(/\s+/)[0]}`, command.split(/\s+/)[0]);
   }
-  return { rows, count: rows.length, scanned: events.length };
+  return { rows, count: rows.length, scanned: events.length, matchedEvents };
 }
 
 module.exports = { executeSpl, SplError };

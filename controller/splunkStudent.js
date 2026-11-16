@@ -8,6 +8,9 @@ const SplunkStudentAlert = require("../model/SplunkStudentAlert");
 const SplunkMissionProgress = require("../model/SplunkMissionProgress");
 const { runStoredSPL } = require("../services/splunkStudentSearch");
 const { executeTutorialSearch, queryIndex } = require("../services/splunkTutorialSearch");
+const { evaluateAlert } = require("../services/splunkAlertScheduler");
+const SocSession = require("../model/SplunkSocSession");
+const { detectionQuery, startScenario, submitReport } = require("../services/splunkSocScenario");
 
 const missions = [
   {
@@ -64,6 +67,34 @@ const toClient = (doc) => {
   return { ...value, id: String(value._id), _id: undefined, ownerId: undefined };
 };
 const respondError = (res, error) => res.status(error.status || 400).json({ message: error.message || "Invalid Splunk student data." });
+
+function scheduleFields(body) {
+  const scheduleMinutes = body.scheduleMinutes;
+  const searchWindow = body.searchWindow ?? "5m";
+  if (![0, 5, 15, 60].includes(scheduleMinutes) || !["5m", "15m", "60m"].includes(searchWindow)) {
+    throw Object.assign(new Error("Choose a supported schedule and search window."), { status: 400 });
+  }
+  return { scheduleMinutes, searchWindow, nextRunAt: scheduleMinutes ? new Date(Date.now() + scheduleMinutes * 60_000) : null };
+}
+
+function socResponse(session) {
+  return { session: toClient(session), detectionQuery, schedulerEnabled: process.env.SPLUNK_ALERT_SCHEDULER_ENABLED === "true", now: new Date() };
+}
+
+exports.getSocScenario = async (req, res, next) => {
+  try { res.json({ data: socResponse(await SocSession.findOne({ ownerId: owner(req) }).lean()) }); }
+  catch (error) { next(error); }
+};
+exports.startSocScenario = async (req, res, next) => {
+  try {
+    if (process.env.SPLUNK_ALERT_SCHEDULER_ENABLED !== "true") return res.status(503).json({ message: "The Splunk backend scheduler is disabled." });
+    res.json({ data: socResponse(await startScenario(owner(req))) });
+  } catch (error) { next(error); }
+};
+exports.submitSocReport = async (req, res, next) => {
+  try { res.json({ data: socResponse(await submitReport(owner(req), req.body)) }); }
+  catch (error) { if (error.status) return respondError(res, error); next(error); }
+};
 
 exports.getWork = async (req, res, next) => {
   try {
@@ -122,9 +153,11 @@ exports.migrateLocalWork = async (req, res, next) => {
       const threshold = Number(item?.threshold);
       const metric = ["events", "resultRows"].includes(item?.metric) ? item.metric : "events";
       if (!legacyId || !name || !spl || !operator || !Number.isInteger(threshold) || threshold < 0 || threshold > 1000000) continue;
+      const schedule = [5, 15, 60].includes(item?.scheduleMinutes) && ["5m", "15m", "60m"].includes(item?.searchWindow)
+        ? scheduleFields(item) : scheduleFields({ scheduleMinutes: 0 });
       await SplunkStudentAlert.updateOne(
         { ownerId: studentOwner, legacyId },
-        { $setOnInsert: { ownerId: studentOwner, legacyId, name, spl, operator, threshold, metric, notifyOnTrigger: Boolean(item?.notifyOnTrigger), history: [] } },
+        { $setOnInsert: { ownerId: studentOwner, legacyId, name, spl, operator, threshold, metric, notifyOnTrigger: Boolean(item?.notifyOnTrigger), history: [], ...schedule } },
         { upsert: true, setDefaultsOnInsert: true },
       );
       counts.alerts += 1;
@@ -231,7 +264,7 @@ exports.refreshDashboard = async (req, res, next) => {
     const filter = idFilter(req); const dashboard = filter && await SplunkStudentDashboard.findOne(filter).lean();
     if (!dashboard) return res.status(404).json({ message: "Dashboard not found." });
     const panels = await Promise.all(dashboard.panels.map(async (panel) => {
-      try { return { ...panel, result: await runStoredSPL(panel.spl, { timeRange: req.body?.timeRange || "all", pageSize: 100 }) }; }
+      try { return { ...panel, result: await runStoredSPL(panel.spl, { ownerId: owner(req), timeRange: req.body?.timeRange || "all", pageSize: 100 }) }; }
       catch (error) { return { ...panel, error: error.message }; }
     }));
     res.json({ data: { ...toClient(dashboard), panels } });
@@ -243,9 +276,10 @@ exports.createAlert = async (req, res, next) => {
     const { name, spl, operator, threshold, metric, notifyOnTrigger } = req.body || {};
     const safeName = cleanText(name, 100), safeSpl = cleanText(spl, 3000), value = Number(threshold);
     if (!safeName || !safeSpl || ![">=", ">", "==", "<=", "<"].includes(operator) || !Number.isInteger(value) || value < 0 || value > 1000000 || !["events", "resultRows"].includes(metric || "events")) return res.status(400).json({ message: "Enter a valid name, SPL query, threshold, metric, and comparison." });
-    const item = await SplunkStudentAlert.create({ ownerId: owner(req), name: safeName, spl: safeSpl, operator, threshold: value, metric: metric || "events", notifyOnTrigger: Boolean(notifyOnTrigger) });
+    const schedule = scheduleFields({ scheduleMinutes: 0, ...req.body });
+    const item = await SplunkStudentAlert.create({ ownerId: owner(req), name: safeName, spl: safeSpl, operator, threshold: value, metric: metric || "events", notifyOnTrigger: Boolean(notifyOnTrigger), ...schedule });
     res.status(201).json({ data: toClient(item) });
-  } catch (error) { next(error); }
+  } catch (error) { if (error.status) return respondError(res, error); next(error); }
 };
 exports.updateAlert = async (req, res, next) => {
   try {
@@ -254,30 +288,29 @@ exports.updateAlert = async (req, res, next) => {
     for (const key of ["name", "spl", "operator", "threshold", "metric", "notifyOnTrigger"]) if (Object.hasOwn(req.body || {}, key)) changes[key] = req.body[key];
     if (changes.name !== undefined) changes.name = cleanText(changes.name, 100);
     if (changes.spl !== undefined) changes.spl = cleanText(changes.spl, 3000);
+    if (Object.hasOwn(req.body || {}, "scheduleMinutes")) Object.assign(changes, scheduleFields(req.body));
     const item = await SplunkStudentAlert.findOneAndUpdate(filter, { $set: changes }, { new: true, runValidators: true });
     if (!item) return res.status(404).json({ message: "Alert not found." });
     res.json({ data: toClient(item) });
-  } catch (error) { next(error); }
+  } catch (error) { if (error.status) return respondError(res, error); next(error); }
 };
 exports.deleteAlert = async (req, res, next) => {
   try { const filter = idFilter(req); const item = filter && await SplunkStudentAlert.findOneAndDelete(filter); if (!item) return res.status(404).json({ message: "Alert not found." }); res.json({ data: { id: req.params.id } }); }
   catch (error) { next(error); }
 };
-const operators = { ">=": (a, b) => a >= b, ">": (a, b) => a > b, "==": (a, b) => a === b, "<=": (a, b) => a <= b, "<": (a, b) => a < b };
 exports.runAlert = async (req, res, next) => {
   try {
     const filter = idFilter(req); const alert = filter && await SplunkStudentAlert.findOne(filter);
     if (!alert) return res.status(404).json({ message: "Alert not found." });
     try {
-      const result = await runStoredSPL(alert.spl, { timeRange: req.body?.timeRange || "all", pageSize: 1 });
-      const observed = alert.metric === "resultRows" ? result.totalRows : result.count;
-      const history = { ranAt: new Date(), triggered: operators[alert.operator](observed, alert.threshold), observed, metric: alert.metric, resultRows: result.totalRows, matchedEvents: result.count };
-      alert.history.push(history); alert.history = alert.history.slice(-50); await alert.save();
+      const history = await evaluateAlert(alert, { timeRange: req.body?.timeRange || (alert.scheduleMinutes ? alert.searchWindow : "all") });
+      const { observed } = history;
+      await SplunkStudentAlert.updateOne(filter, { $push: { history: { $each: [history], $slice: -50 } } }, { timestamps: false });
       res.json({ data: { ...history, alertName: alert.name, threshold: alert.threshold, operator: alert.operator, message: history.triggered ? `Triggered: ${observed} ${alert.metric} ${alert.operator} ${alert.threshold}.` : `Not triggered: ${observed} ${alert.metric}; condition is ${alert.operator} ${alert.threshold}.` } });
     } catch (error) {
       if (error.status || error.name === "SplError") {
         const history = { ranAt: new Date(), triggered: false, observed: 0, metric: alert.metric, resultRows: 0, matchedEvents: 0, error: error.message };
-        alert.history.push(history); alert.history = alert.history.slice(-50); await alert.save();
+        await SplunkStudentAlert.updateOne(filter, { $push: { history: { $each: [history], $slice: -50 } } }, { timestamps: false });
         return res.status(error.status || 422).json({ message: error.message });
       }
       throw error;

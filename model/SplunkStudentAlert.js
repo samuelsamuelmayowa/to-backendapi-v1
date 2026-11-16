@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const { Schema } = mongoose;
 const runSchema = new Schema({
   ranAt: { type: Date, default: Date.now },
+  scheduledFor: Date,
   triggered: { type: Boolean, required: true },
   observed: { type: Number, required: true },
   metric: { type: String, enum: ["events", "resultRows"], required: true },
@@ -19,6 +20,9 @@ const schema = new Schema({
   threshold: { type: Number, required: true, min: 0, max: 1000000 },
   metric: { type: String, enum: ["events", "resultRows"], default: "events" },
   notifyOnTrigger: { type: Boolean, default: false },
+  scheduleMinutes: { type: Number, enum: [0, 5, 15, 60], default: 0 },
+  searchWindow: { type: String, enum: ["5m", "15m", "60m"], default: "5m" },
+  nextRunAt: { type: Date, default: null, index: true },
   history: { type: [runSchema], default: [] },
 }, { timestamps: true, collection: "splunk_student_alerts" });
 schema.index({ ownerId: 1, updatedAt: -1 });

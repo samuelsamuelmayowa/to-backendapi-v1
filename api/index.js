@@ -378,6 +378,10 @@ const server = app.listen(port, () => {
   console.log("SERVER IS RUNNING", port);
 });
 attachRealtimeMarketData(server);
+if (process.env.SPLUNK_ALERT_SCHEDULER_ENABLED === "true") {
+  const scheduler = require("../services/splunkAlertScheduler").startAlertScheduler();
+  server.once("close", () => clearInterval(scheduler));
+}
 // const port = 9000 || process.env.PORT;
 // app.listen(port, () => {
 //   console.log("SERVER IS RUNNING   " + port);

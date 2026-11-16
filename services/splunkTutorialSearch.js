@@ -5,7 +5,7 @@ const { executeSpl, SplError } = require("./splEngine");
 const MAX_QUERY_LENGTH = 3000;
 const MAX_PAGE_SIZE = 500;
 const MAX_SCAN = 150000;
-const TIME_RANGES = new Set(["all", "24h", "7d"]);
+const TIME_RANGES = new Set(["all", "5m", "15m", "60m", "24h", "7d"]);
 const SUPPORTED_COMMANDS = new Set(["search", "where", "stats", "eval", "bin", "timechart", "table", "fields", "sort", "dedup"]);
 
 function queryIndex(query) {
@@ -41,7 +41,8 @@ function resultMode(query) {
 
 function timeRangeStart(timeRange, now = Date.now()) {
   const value = timeRange || "all";
-  if (!TIME_RANGES.has(value)) throw new SplError("Choose a supported time range: all, 24h, or 7d.", "time range");
+  if (!TIME_RANGES.has(value)) throw new SplError("Choose a supported time range: all, 5m, 15m, 60m, 24h, or 7d.", "time range");
+  if (value.endsWith("m")) return now - Number.parseInt(value, 10) * 60_000;
   if (value === "24h") return now - 24 * 60 * 60 * 1000;
   if (value === "7d") return now - 7 * 24 * 60 * 60 * 1000;
   return null;
@@ -81,6 +82,7 @@ function executeTutorialSearch({ query, index, dataset, events, timeRange = "all
     rows,
     count: totalRows,
     totalRows,
+    matchedEvents: result.matchedEvents,
     scanned: inRange.length,
     elapsedMs,
     index,

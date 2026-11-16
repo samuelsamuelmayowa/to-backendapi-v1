@@ -14,11 +14,12 @@ function resultPageSize(value) {
 }
 
 async function runStoredSPL(query, options = {}) {
+  const index = queryIndex(query);
+  if (index === "toa_soc") return require("./splunkSocScenario").searchStudentScenario(options.ownerId, query, options);
   if (!isTrainingStoreReady()) throw trainingStoreUnavailableError();
   if (usesSupabaseTrainingStore()) return runSupabaseStoredSPL(query, options);
   const SplunkLabDataset = getDatasetModel();
   const SplunkLabEvent = getEventModel();
-  const index = queryIndex(query);
   const dataset = await SplunkLabDataset.findOne({ index, status: "ready" }).lean();
   if (!dataset) {
     const error = new Error(`Index ${index} is not available in the stored dataset catalog. Select an available index or contact your instructor.`);
@@ -27,7 +28,7 @@ async function runStoredSPL(query, options = {}) {
   }
   const timeRange = options.timeRange || "all";
   if (isUnfilteredCount(query, index)) {
-    const now = Date.now();
+    const now = options.now ?? Date.now();
     const start = timeRangeStart(timeRange, now);
     const filter = { index, datasetSlug: dataset.slug, datasetVersion: dataset.version };
     if (start !== null) filter._time = { $gte: new Date(start), $lte: new Date(now) };
@@ -42,6 +43,7 @@ async function runStoredSPL(query, options = {}) {
     return {
       rows: [{ count }],
       count: 1,
+      matchedEvents: count,
       totalRows: 1,
       scanned: count,
       elapsedMs,
@@ -77,6 +79,7 @@ async function runStoredSPL(query, options = {}) {
     dataset,
     events,
     timeRange,
+    now: options.now,
     page: options.page,
     pageSize: Math.min(MAX_PAGE_SIZE, Number(options.pageSize) || 100),
   });
@@ -92,8 +95,8 @@ async function runSupabaseStoredSPL(query, options) {
     throw error;
   }
   const timeRange = options.timeRange || "all";
-  const start = timeRangeStart(timeRange);
-  const end = Date.now();
+  const end = options.now ?? Date.now();
+  const start = timeRangeStart(timeRange, end);
   if (isUnfilteredCount(query, index)) {
     const countStarted = performance.now();
     const count = await countEvents(dataset, start, end);
@@ -104,7 +107,7 @@ async function runSupabaseStoredSPL(query, options) {
       throw error;
     }
     return {
-      rows: [{ count }], count: 1, totalRows: 1, scanned: count, elapsedMs, index,
+      rows: [{ count }], count: 1, totalRows: 1, matchedEvents: count, scanned: count, elapsedMs, index,
       dataset: { slug: dataset.slug, name: dataset.name }, mode: "statistics", status: "complete",
       warnings: [], trace: [], page: 1, pageSize: resultPageSize(options.pageSize), totalPages: 1, truncated: false,
     };
@@ -115,7 +118,7 @@ async function runSupabaseStoredSPL(query, options) {
     error.status = 422;
     throw error;
   }
-  return executeTutorialSearch({ query, index, dataset, events: records, timeRange, page: options.page, pageSize: options.pageSize });
+  return executeTutorialSearch({ query, index, dataset, events: records, timeRange, now: end, page: options.page, pageSize: options.pageSize });
 }
 
 module.exports = { runStoredSPL };
