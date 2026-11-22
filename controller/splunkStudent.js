@@ -67,6 +67,21 @@ const toClient = (doc) => {
   return { ...value, id: String(value._id), _id: undefined, ownerId: undefined };
 };
 const respondError = (res, error) => res.status(error.status || 400).json({ message: error.message || "Invalid Splunk student data." });
+const dashboardError = (message) => Object.assign(new Error(message), { status: 400 });
+
+function dashboardLayout(value = "grid") {
+  if (value !== "grid" && value !== "absolute") throw dashboardError("Choose Grid or Absolute layout.");
+  return value;
+}
+
+function dashboardPosition(value) {
+  if (value == null) return undefined;
+  const { x, y, width, height } = value;
+  if (![x, y, width, height].every(Number.isInteger) || x < 0 || y < 0 || width < 240 || height < 160 || x + width > 1200 || y + height > 5400) {
+    throw dashboardError("Panel position must fit inside the dashboard canvas.");
+  }
+  return { x, y, width, height };
+}
 
 function scheduleFields(body) {
   const scheduleMinutes = body.scheduleMinutes;
@@ -133,14 +148,15 @@ exports.migrateLocalWork = async (req, res, next) => {
       const panels = (Array.isArray(item?.panels) ? item.panels : []).slice(0, 16).map((panel, index) => ({
         id: cleanText(panel?.id, 80) || `panel-${index + 1}`,
         title: cleanText(panel?.title, 80) || "Untitled panel",
-        type: ["table", "chart", "number"].includes(panel?.type) ? panel.type : "table",
+        type: ["table", "chart", "line", "pie", "number"].includes(panel?.type) ? panel.type : "table",
         spl: cleanText(panel?.spl, 3000),
         savedSearchId: savedMap.get(String(panel?.sourceSearchId || panel?.savedSearchId || "")) || null,
+        position: dashboardPosition(panel?.position),
       })).filter((panel) => panel.spl);
       if (!legacyId || !name || !panels.length) continue;
       await SplunkStudentDashboard.updateOne(
         { ownerId: studentOwner, legacyId },
-        { $setOnInsert: { ownerId: studentOwner, legacyId, name, panels } },
+        { $setOnInsert: { ownerId: studentOwner, legacyId, name, panels, layout: dashboardLayout(item?.layout) } },
         { upsert: true, setDefaultsOnInsert: true },
       );
       counts.dashboards += 1;
@@ -213,24 +229,29 @@ exports.deleteSavedSearch = async (req, res, next) => {
 };
 
 async function validatePanels(studentOwner, panels) {
-  if (!Array.isArray(panels) || !panels.length || panels.length > 16) throw new Error("A dashboard needs between 1 and 16 panels.");
+  if (!Array.isArray(panels) || !panels.length || panels.length > 16) throw dashboardError("A dashboard needs between 1 and 16 panels.");
   const prepared = [];
+  const ids = new Set();
   for (let index = 0; index < panels.length; index += 1) {
     const panel = panels[index];
     const spl = cleanText(panel?.spl, 3000);
-    if (!spl) throw new Error("Each panel must contain an SPL query.");
+    if (!spl) throw dashboardError("Each panel must contain an SPL query.");
+    const id = cleanText(panel?.id, 80) || `panel-${index + 1}`;
+    if (ids.has(id)) throw dashboardError("Dashboard panels must have unique IDs.");
+    ids.add(id);
     let savedSearchId = null;
     if (panel?.savedSearchId && mongoose.Types.ObjectId.isValid(panel.savedSearchId)) {
       const saved = await SplunkSavedSearch.findOne({ _id: panel.savedSearchId, ownerId: studentOwner }).select("_id").lean();
-      if (!saved) throw new Error("A panel references a saved search that does not belong to this student.");
+      if (!saved) throw dashboardError("A panel references a saved search that does not belong to this student.");
       savedSearchId = saved._id;
     }
     prepared.push({
-      id: cleanText(panel?.id, 80) || `panel-${index + 1}`,
+      id,
       title: cleanText(panel?.title, 80) || "Untitled panel",
-      type: ["table", "chart", "number"].includes(panel?.type) ? panel.type : "table",
+      type: ["table", "chart", "line", "pie", "number"].includes(panel?.type) ? panel.type : "table",
       spl,
       savedSearchId,
+      position: dashboardPosition(panel?.position),
     });
   }
   return prepared;
@@ -240,7 +261,7 @@ exports.createDashboard = async (req, res, next) => {
     const name = cleanText(req.body?.name, 100);
     if (!name) return res.status(400).json({ message: "Enter a dashboard name." });
     const panels = await validatePanels(owner(req), req.body?.panels);
-    const item = await SplunkStudentDashboard.create({ ownerId: owner(req), name, panels });
+    const item = await SplunkStudentDashboard.create({ ownerId: owner(req), name, panels, layout: dashboardLayout(req.body?.layout) });
     res.status(201).json({ data: toClient(item) });
   } catch (error) { if (error.status) respondError(res, error); else next(error); }
 };
@@ -248,7 +269,11 @@ exports.updateDashboard = async (req, res, next) => {
   try {
     const filter = idFilter(req); if (!filter) return res.status(404).json({ message: "Dashboard not found." });
     const changes = {};
-    if (Object.hasOwn(req.body || {}, "name")) changes.name = cleanText(req.body.name, 100);
+    if (Object.hasOwn(req.body || {}, "name")) {
+      changes.name = cleanText(req.body.name, 100);
+      if (!changes.name) throw dashboardError("Enter a dashboard name.");
+    }
+    if (Object.hasOwn(req.body || {}, "layout")) changes.layout = dashboardLayout(req.body.layout);
     if (Object.hasOwn(req.body || {}, "panels")) changes.panels = await validatePanels(owner(req), req.body.panels);
     const item = await SplunkStudentDashboard.findOneAndUpdate(filter, { $set: changes }, { new: true, runValidators: true });
     if (!item) return res.status(404).json({ message: "Dashboard not found." });

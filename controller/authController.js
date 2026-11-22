@@ -142,10 +142,14 @@ const login = (req, res, next) => {
     // check vaildation
     // check if user exist 
     // check for token
-    const { email, password } = req.body;
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const { password } = req.body;
+    if (!email || typeof password !== "string" || !password) {
+        return res.status(400).json({ message: "Email and password are required." });
+    }
     let loadedUser;
-    User.findOne({ email: email }).then((user) => {
-        if (!user) {
+    User.findOne({ email: email }).select("+password").then((user) => {
+        if (!user || typeof user.password !== "string" || !user.password) {
             const error = new Error("Login error: Verify your email and password or create an account");
             error.statusCode = 401;
             throw error;

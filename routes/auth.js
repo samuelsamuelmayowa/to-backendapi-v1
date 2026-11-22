@@ -34,8 +34,8 @@ const verifyGoogleIdentity = require("../middleware/verifyGoogleMobile")(require
 //   })
 // ], authController.signup);
 router.post('/sighup', requireTrustedOrigin, [
-  body('email').isEmail().withMessage('please enter a vilad email').custom((value, { req }) => {
-    return User.findOne({ email: req.email }).then(userDoc => {
+  body('email').isEmail().withMessage('please enter a vilad email').normalizeEmail().custom((value, { req }) => {
+    return User.findOne({ email: value }).then(userDoc => {
       if (userDoc) {
       
       logger.warn({
@@ -46,7 +46,7 @@ router.post('/sighup', requireTrustedOrigin, [
         return Promise.reject('Email already taken')
       }
     })
-  }).normalizeEmail(),
+  }),
 
   body('password').trim(),
   body('name').notEmpty().withMessage('please enter a vilad email').custom((value, { req }) => {
