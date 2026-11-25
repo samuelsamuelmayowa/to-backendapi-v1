@@ -45,11 +45,11 @@ function createManagementRouter({ supabase, resolveUserId }) {
 
   router.get('/projects', async (req, res, next) => {
     try {
-      const { data, error } = await supabase.from('monitoring_projects')
-        .select('id,name,runtime,environment,created_at')
+      const { data, error, count } = await supabase.from('monitoring_projects')
+        .select('id,name,runtime,environment,created_at', { count: 'exact' })
         .eq('owner_user_id', req.toMonitoringUserId).order('created_at', { ascending: false }).limit(100);
       if (error) throw error;
-      return res.json({ projects: (data || []).map(p => ({ ...p, ingest_url: publicIngestUrl() })) });
+      return res.json({ projects: (data || []).map(p => ({ ...p, ingest_url: publicIngestUrl() })), total: count });
     } catch (e) { next(e); }
   });
 

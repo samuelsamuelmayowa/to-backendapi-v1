@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
+const { randomUUID } = require('node:crypto');
 const { fixture, payload, register } = require('./helpers/monitoringFixture');
 
 test('authenticated project/key/trace/status workflow with isolated storage adapter', async t => {
@@ -101,4 +102,16 @@ test('ingestion enforces the 120-request IP limit even for invalid keys', async 
   assert.equal(limited.status,429);
   assert.ok(Number(limited.headers.get('retry-after'))>0);
   assert.equal(f.supabase.rows.monitoring_spans.length,0);
+});
+
+test('project totals include all owned registrations, exclude other owners and are not capped by the list limit', async t => {
+  const f = await fixture(); t.after(f.close);
+  for (let n=0;n<125;n++) f.supabase.rows.monitoring_projects.push({id:randomUUID(),owner_user_id:'owner-a',name:`Application ${n}`,runtime:'nodejs',environment:'development'});
+  for (let n=0;n<9;n++) f.supabase.rows.monitoring_projects.push({id:randomUUID(),owner_user_id:'owner-b',name:'Other owner'});
+  const response=await f.request('/api/monitoring/projects');
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.total,125);
+  assert.equal(data.projects.length,100);
+  assert.ok(data.projects.every(project=>project.name.startsWith('Application')));
 });
