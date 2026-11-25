@@ -1,0 +1,7 @@
+{
+  "name": "monitoring-isolated-database-tests",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": { "test": "node --test migrations.test.cjs" },
+  "dependencies": { "embedded-postgres": "17.12.0-beta.19", "pg": "8.23.1" }
+}

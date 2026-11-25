@@ -1,6 +1,9 @@
 const express = require('express');
 const UserProgress = require('../model/userprogress.js')
 const router = express.Router();
+const { requireDatabase } = require('../services/database');
+// Run before signup validators and password/Google account lookups.
+router.use(['/login', '/sighup', '/google', '/forgot-password', '/reset-password'], requireDatabase);
 const authController = require('../controller/authController')
 const { body } = require('express-validator')
 const User = require('../model/user')

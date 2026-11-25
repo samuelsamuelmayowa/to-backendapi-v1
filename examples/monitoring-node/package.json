@@ -1,0 +1,14 @@
+{
+  "name": "to-monitoring-node-example",
+  "private": true,
+  "version": "1.0.0",
+  "engines": { "node": ">=22.15.0" },
+  "scripts": {
+    "start": "node --env-file=.env --require @opentelemetry/auto-instrumentations-node/register server.cjs"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "1.10.0",
+    "@opentelemetry/auto-instrumentations-node": "0.83.1",
+    "express": "4.22.1"
+  }
+}

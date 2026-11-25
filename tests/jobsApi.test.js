@@ -2,8 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const express = require("express");
 const { createJobsService, validateSearch } = require("../services/jobsService");
-const { createJobsController } = require("../controller/jobsController");
-const { createJobsRouter } = require("../routes/jobs");
+const createJobsRouter = require("../routes/jobs");
 
 const providerJob = (overrides = {}) => ({
   job_id: "splunk-001",
@@ -258,38 +257,32 @@ test("provider timeouts return a safe, identifiable diagnostic", async () => {
   await assert.rejects(service.getJobs(), { code: "JOBS_PROVIDER_TIMEOUT" });
 });
 
-test("jobs HTTP routes return normalized results and safe provider failures", async (t) => {
-  const service = {
-    getJobs: async () => ({
-      jobs: [{ id: "job-1", title: "SOC Analyst", applyUrl: "https://jobs.example/1" }],
-      pagination: { page: 1, hasMore: false, nextPage: null },
-      refreshedAt: "2026-10-01T12:00:00.000Z",
-      cached: false,
-      stale: false,
-    }),
-    getJobById: async (id) => {
-      if (id === "job-1") return { id, title: "SOC Analyst", applyUrl: "https://jobs.example/1" };
-      const error = new Error("not found");
-      error.statusCode = 404;
-      error.code = "JOB_NOT_FOUND";
-      throw error;
-    },
+test("active jobs router keeps its exported factory, cached feed and safe provider failures", async (t) => {
+  const nativeFetch = global.fetch;
+  const oldKey = process.env.JSEARCH_API_KEY;
+  process.env.JSEARCH_API_KEY = 'test-only';
+  let upstreamCalls = 0, failProvider = false;
+  global.fetch = async (url, options) => {
+    if (new URL(url).hostname !== 'api.openwebninja.com') return nativeFetch(url, options);
+    upstreamCalls++;
+    if (failProvider) return { ok: false, status: 503 };
+    return { ok: true, json: async () => ({ status: 'OK', data: { jobs: [providerJob()], cursor: '' } }) };
   };
+  t.after(() => { global.fetch = nativeFetch; if (oldKey === undefined) delete process.env.JSEARCH_API_KEY; else process.env.JSEARCH_API_KEY = oldKey; });
   const app = express();
-  app.use("/api/jobs", createJobsRouter(createJobsController(service)));
+  app.use("/api/jobs", createJobsRouter({ getCollection: () => null }));
   const server = await new Promise((resolve) => {
     const listener = app.listen(0, "127.0.0.1", () => resolve(listener));
   });
   t.after(() => new Promise((resolve) => server.close(resolve)));
   const base = `http://127.0.0.1:${server.address().port}/api/jobs`;
 
-  const response = await fetch(`${base}?query=SOC`);
+  const response = await fetch(`${base}?query=activation-router-contract`);
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).jobs[0].applyUrl, "https://jobs.example/1");
-  const detail = await fetch(`${base}/job-1`);
-  assert.equal(detail.status, 200);
-  assert.equal((await detail.json()).title, "SOC Analyst");
-  const missing = await fetch(`${base}/missing`);
-  assert.equal(missing.status, 404);
-  assert.deepEqual(await missing.json(), { error: "not found", code: "JOB_NOT_FOUND" });
+  assert.equal((await response.json()).jobs[0].applyUrl, providerJob().job_apply_link);
+  assert.equal((await fetch(`${base}?query=activation-router-contract`)).status, 200);
+  assert.equal(upstreamCalls, 1);
+  failProvider = true;
+  assert.equal((await fetch(`${base}?query=activation-router-failure`)).status, 502);
+  assert.equal((await fetch(`${base}?category=not-an-allowed-category`)).status, 400);
 });

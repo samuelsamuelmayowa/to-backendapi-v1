@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseOtlpHttpSpans } = require('../backend/otlp-parser.cjs');
+const { parseOtlpHttpSpans } = require('../otlp-parser.cjs');
 const projectId = '3a92e633-fc60-4502-a9fa-32dcda116170';
 const t = BigInt(Date.now()) * 1000000n;
 const span = {
@@ -36,10 +36,25 @@ test('rejects malformed ids', () => {
   assert.throws(() => parseOtlpHttpSpans(mk({...span, traceId:'1234'}), projectId), /Invalid traceId/);
 });
 test('rejects unknown/unsafe route path with query string', () => {
-  const [row] = parseOtlpHttpSpans(mk({...span, attributes:[{key:'http.route',value:{stringValue:'/foo?token=SECRET'}}]}),projectId);
+  const [row] = parseOtlpHttpSpans(mk({...span, attributes:[{key:'http.method',value:{stringValue:'GET'}},{key:'http.route',value:{stringValue:'/foo?token=SECRET'}}]}),projectId);
   assert.equal(row.http_route, null);
 });
 test('enforces maximum number of spans', () => {
   const many = mk(span); many.resourceSpans[0].scopeSpans[0].spans = Array.from({ length:101 }, () => span);
   assert.throws(() => parseOtlpHttpSpans(many, projectId), /Too many spans/);
+});
+
+test('rejects null resources/scopes and zero trace identifiers', () => {
+  for (const body of [{resourceSpans:[null]}, {resourceSpans:[{scopeSpans:[null]}]}, mk({...span,traceId:'0'.repeat(32)})]) {
+    assert.throws(() => parseOtlpHttpSpans(body, projectId), error => error.status === 400);
+  }
+});
+
+test('server spans for non-HTTP protocols never establish connection', () => {
+  assert.deepEqual(parseOtlpHttpSpans(mk({...span, attributes:[]}), projectId), []);
+});
+
+test('supports OTLP enum names and privacy-safe HTTP attributes', () => {
+  const [row] = parseOtlpHttpSpans(mk({...span,kind:'SPAN_KIND_SERVER',status:{code:'STATUS_CODE_ERROR'}}),projectId);
+  assert.equal(row.span_error,true);
 });

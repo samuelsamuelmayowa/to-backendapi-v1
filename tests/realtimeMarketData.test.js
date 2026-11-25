@@ -173,6 +173,7 @@ test("subscription messages report provider acknowledgement and route complete b
 });
 
 test("backend WebSocket endpoint accepts the frontend origin and relays normalized stream events", async (t) => {
+  let client;
   const stream = new EventEmitter();
   stream.getStatus = () => "offline";
   stream.start = () => { stream.status = "connecting"; stream.emit("status", { status: "connecting" }); };
@@ -184,15 +185,23 @@ test("backend WebSocket endpoint accepts the frontend origin and relays normaliz
   const realtime = attachRealtimeMarketData(server, { service });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(async () => {
+    client?.terminate();
     realtime.close();
     await new Promise((resolve) => server.close(resolve));
   });
-  const client = new WebSocket(`ws://127.0.0.1:${server.address().port}/api/market-data/stream`, {
+  client = new WebSocket(`ws://127.0.0.1:${server.address().port}/api/market-data/stream`, {
     headers: { Origin: "https://www.to-analytics.com" },
   });
-  const nextMessage = () => new Promise((resolve, reject) => {
-    client.once("message", (raw) => resolve(JSON.parse(String(raw))));
-    client.once("error", reject);
+  // A single socket read can contain status + subscription messages. Queue them
+  // instead of dropping the second frame between successive once() listeners.
+  const messages = [], waiting = [];
+  client.on('message', raw => {
+    const message = JSON.parse(String(raw));
+    if (waiting.length) waiting.shift().resolve(message); else messages.push(message);
+  });
+  const nextMessage = () => messages.length ? Promise.resolve(messages.shift()) : new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Expected WebSocket message was not received')), 5000);
+    waiting.push({resolve(value){clearTimeout(timer);resolve(value);}});
   });
   const initialMessage = nextMessage();
   await new Promise((resolve, reject) => { client.once("open", resolve); client.once("error", reject); });
@@ -207,5 +216,8 @@ test("backend WebSocket endpoint accepts the frontend origin and relays normaliz
   assert.deepEqual(await nextMessage(), bar);
   client.close();
   await new Promise((resolve) => client.once("close", resolve));
+  // The client close event can precede the server's disconnect bookkeeping.
+  const cleanupDeadline=Date.now()+2000;
+  while(service.getStats().clientCount && Date.now()<cleanupDeadline) await new Promise(resolve=>setTimeout(resolve,10));
   assert.equal(service.getStats().clientCount, 0);
 });

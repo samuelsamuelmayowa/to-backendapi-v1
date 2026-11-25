@@ -1,10 +1,13 @@
-require("dotenv").config();
+require("dotenv").config({ path: require("path").join(__dirname, "../.env") });
 const express = require("express");
 const app = express();
 // Render terminates client traffic at its proxy before forwarding to Express.
 // Trust the single proxy hop so express-rate-limit can safely read req.ip.
 app.set("trust proxy", 1);
 const mongoose = require("mongoose");
+// Authentication waits for database readiness in routes/auth.js. Preserve the
+// existing Mongoose defaults for unrelated Analytics and Studio models.
+const { connectDatabase } = require("../services/database");
 const { initializeSplunkTrainingStore, usesSupabaseTrainingStore } = require("../services/splunkTrainingStore");
 const bodyParser = require("body-parser");
 // Webhook MUST come before JSON parsing
@@ -23,7 +26,7 @@ const Paypal = require("@paypal/checkout-server-sdk");
 const Middleware = require("../middleware/auth");
 const paypal = require("@paypal/checkout-server-sdk");
 const splunkLabRoutes = require("../routes/splunkLab.js");
-const cookiesMiddleware = require("universal-cookie-express");
+const cookiesMiddleware = require("../middleware/requestCookies");
 const Payment = require("../model/payment.js");
 const skillLabRoutes = require("../routes/skillLab.js");
 const skillLabWorkplaceRoutes = require("../routes/skillLabWorkplace.js");
@@ -44,6 +47,12 @@ const {
 
 app.use("/api/payment/webhook", webhookRouter);
 
+const { createMonitoringRoutes, monitoringError, startMonitoringRetention } = require('../routes/monitoring');
+const monitoringRoutes = createMonitoringRoutes();
+app.use('/otlp', monitoringRoutes.ingestion);
+// Management has its own small body limit; other services keep their existing parser.
+app.use('/api/monitoring', express.json({ limit: '16kb' }), (error, req, res, next) => monitoringError(error, req, res, next));
+
 app.use(bodyParser.json()); // application/json
 var cookieParser = require("cookie-parser");
 const path = require("path");
@@ -53,12 +62,9 @@ app.use("/uploads", express.static(path.join(__dirname, "..","uploads")));
 // app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 console.log("Serving uploads from:", path.join(__dirname,  "..","uploads"));
 
-mongoose
-  .connect(
-   process.env.DATABASE_URL
-  )
-  .then((res) => console.log("database connected!!!"))
-  .catch((err) => console.log(err.message));
+connectDatabase()
+  .then(() => console.log("Account database connected."))
+  .catch(() => console.error("Account database unavailable. Check DATABASE_URL, MongoDB network access, and DNS. Authentication requests will retry the connection."));
 
 if (usesSupabaseTrainingStore() || process.env.SPLUNK_TRAINING_DATABASE_URL) {
   const trainingStoreName = usesSupabaseTrainingStore() ? "Supabase" : "MongoDB";
@@ -74,6 +80,7 @@ app.use(cookiesMiddleware());
 app.use(corsMiddleware);
 app.use(csrfProtection);
 
+app.use('/api/monitoring', monitoringRoutes.management);
 
 app.use("/api/orientation-feedback", orientationFeedbackRouter);
 
@@ -374,10 +381,12 @@ app.use((error, req, res, next) => {
   res.status(status).json({ message: message, error: "server error" });
 });
 const port = process.env.PORT || 8000;
-const server = app.listen(port, () => {
+const server = app.listen(port, '0.0.0.0', () => {
   console.log("SERVER IS RUNNING", port);
 });
 attachRealtimeMarketData(server);
+const monitoringRetentionTimer = startMonitoringRetention();
+server.once('close', () => clearInterval(monitoringRetentionTimer));
 if (process.env.SPLUNK_ALERT_SCHEDULER_ENABLED === "true") {
   const scheduler = require("../services/splunkAlertScheduler").startAlertScheduler();
   server.once("close", () => clearInterval(scheduler));

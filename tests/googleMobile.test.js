@@ -28,10 +28,11 @@ test('rejects invalid Firebase tokens', async () => {
   assert.equal(result.status, 401);
   assert.equal(result.nextCalled, false);
 });
-test('rejects unverified email and non-Google sign-in', async () => {
-  for (const value of [{ ...identity, email_verified: false }, { ...identity, firebase: { sign_in_provider: 'password' } }]) {
+test('verified tokens with unverified email, a non-Google provider, or missing email are forbidden', async () => {
+  for (const value of [{ ...identity, email_verified: false }, { ...identity, firebase: { sign_in_provider: 'password' } }, { ...identity, email: '' }, { ...identity, email: null }]) {
     const result = await run({ idToken: 'firebase-token' }, value);
-    assert.equal(result.status, 401);
+    assert.equal(result.status, 403);
+    assert.equal(result.checked, true);
     assert.equal(result.nextCalled, false);
   }
 });
