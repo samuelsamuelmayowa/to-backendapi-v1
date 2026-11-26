@@ -48,12 +48,12 @@ function fakeSupabase() {
         rows.monitoring_project_keys.push(key);
         return { data: { id: key.id, key_prefix: key.key_prefix, created_at: key.created_at } };
       }
-      if (name === 'monitoring_ingest_spans') {
+      if (name === 'monitoring_ingest_spans' || name === 'monitoring_ingest_spans_v2') {
         const key = rows.monitoring_project_keys.find(row => row.key_hash === args.p_key_hash && !row.revoked_at);
         if (!key) return { data: { error: 'invalid_key' } };
         if (client.quotaExceeded) return { data: { error: 'quota_exceeded' } };
         const fresh = args.p_spans.filter(span => !rows.monitoring_spans.some(row => row.project_id === key.project_id && row.trace_id === span.trace_id && row.span_id === span.span_id));
-        fresh.forEach(span => rows.monitoring_spans.push({ ...span, id: randomUUID(), project_id: key.project_id, received_at: new Date().toISOString() }));
+        fresh.forEach(span => rows.monitoring_spans.push({ span_kind: 'SERVER', ...span, id: randomUUID(), project_id: key.project_id, received_at: new Date().toISOString() }));
         if (fresh.length) rows.monitoring_projects.find(row => row.id === key.project_id).last_received_at = new Date().toISOString();
         return { data: { stored: fresh.length } };
       }
@@ -63,12 +63,12 @@ function fakeSupabase() {
   return client;
 }
 
-async function fixture() {
+async function fixture(options = {}) {
   process.env.JWT_SECRET = 'monitoring-test-only-secret';
   process.env.MONITORING_PUBLIC_OTLP_TRACES_URL = 'http://127.0.0.1:8000/otlp/v1/traces';
   const supabase = fakeSupabase();
   const app = express();
-  const routes = createMonitoringRoutes({ getSupabase: () => supabase });
+  const routes = createMonitoringRoutes({ getSupabase: () => supabase, ...options });
   app.use('/otlp', routes.ingestion);
   app.use('/api/monitoring', express.json({ limit: '16kb' }), monitoringError);
   app.use(express.json(), cookieParser(), csrfProtection);

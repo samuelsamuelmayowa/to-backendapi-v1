@@ -349,6 +349,72 @@ test('both Monitoring migrations on a disposable real PostgreSQL database', { ti
     assert.notEqual((await service.query('select last_received_at from public.monitoring_projects where id=$1',[id])).rows[0].last_received_at,null);
   });
 
+  await t.test('advanced migration rolls back on failure and adds secure bounded dependency storage', async () => {
+    const advancedSql=await fs.readFile(path.join(root,'supabase/migrations/20261126_monitoring_dependencies.sql'),'utf8');
+    await assert.rejects(admin.query(advancedSql.replace(/commit;\s*$/i,'select 1/0; commit;')),e=>e.code==='22012');
+    await admin.query('rollback');
+    assert.equal((await admin.query("select pg_catalog.to_regprocedure('public.monitoring_ingest_spans_v2(text,jsonb)') f")).rows[0].f,null);
+    assert.equal((await admin.query("select count(*)::int n from information_schema.columns where table_name='monitoring_spans' and column_name='span_kind'")).rows[0].n,0);
+    await admin.query(advancedSql);
+    assert.deepEqual(await snapshot(),original);
+    for(const role of ['anon','authenticated','monitoring_test_untrusted']) {
+      const untrusted=await connect(role);
+      try {await assert.rejects(untrusted.query("select public.monitoring_ingest_spans_v2($1,'[]'::jsonb)",[hash()]),e=>e.code==='42501');}
+      finally {await close(untrusted);}
+    }
+    const config=(await admin.query("select proconfig from pg_catalog.pg_proc where oid='public.monitoring_ingest_spans_v2(text,jsonb)'::pg_catalog.regprocedure")).rows[0].proconfig;
+    assert.ok(config.includes('search_path=""'));
+    const advancedRpc=async(client,keyHash,rows)=>(await client.query('select public.monitoring_ingest_spans_v2($1,$2::jsonb) result',[keyHash,JSON.stringify(rows)])).rows[0].result;
+    const id=await project(), k=await key(id), other=await project('verified-owner-b');
+    const server={...span(),project_id:other,span_kind:'SERVER',span_name:'HTTP SERVER GET'};
+    const dependency={...span(),trace_id:server.trace_id,parent_span_id:server.span_id,span_kind:'CLIENT',span_name:'mysql SELECT',http_method:null,http_route:null,http_status:null,db_system:'mysql',db_operation:'SELECT',environment:'production',service_version:'1.2.3',error_type:'TimeoutError'};
+    assert.equal((await advancedRpc(service,k.hash,[server,dependency])).stored,2);
+    assert.equal((await service.query('select count(*)::int n from public.monitoring_spans where project_id=$1 and trace_id=$2',[id,server.trace_id])).rows[0].n,2);
+    assert.equal((await service.query('select count(*)::int n from public.monitoring_spans where project_id=$1',[other])).rows[0].n,0);
+    assert.equal((await advancedRpc(service,k.hash,[server,dependency])).stored,0);
+    // SQL constraints reject malformed rows even from the trusted server RPC.
+    for(const changes of [{db_operation:'SELECT secret'},{parent_span_id:'bad'},{http_method:'GET'},{span_name:'secret'},{service_version:'secret'},{error_type:'secret'},{span_kind:'INTERNAL'},{db_system:null},{started_at:'2000-01-01T00:00:00Z'}]) {
+      await assert.rejects(advancedRpc(service,k.hash,[{...dependency,span_id:randomBytes(8).toString('hex'),...changes}]),e=>['23514','22023'].includes(e.code));
+    }
+    assert.equal((await rpc(service,k.hash,[span()])).stored,1); // Legacy RPC still works.
+    const sender=await connect('service_role');
+    try {
+      await sender.query('begin');
+      assert.equal((await advancedRpc(sender,k.hash,[{...dependency,span_id:randomBytes(8).toString('hex')}])).stored,1);
+      await sender.query('rollback');
+      assert.equal((await service.query('select count(*)::int n from public.monitoring_spans where project_id=$1',[id])).rows[0].n,3);
+    }finally{await close(sender);}
+    // Concurrent mixed batches share one quota across keys and roll back losers.
+    const quotaProject=await project(), keys=[await key(quotaProject),await key(quotaProject)];
+    await admin.query(`insert into public.monitoring_ingest_buckets(project_id,bucket_start,span_count)
+      select $1,date_trunc('minute',clock_timestamp())+n*interval '1 minute',598 from generate_series(-1,1) n`,[quotaProject]);
+    const workers=await Promise.all(Array.from({length:6},()=>connect('service_role')));
+    try {
+      const results=await Promise.all(workers.map((client,i)=>advancedRpc(client,keys[i%2].hash,[{...server,span_id:randomBytes(8).toString('hex')},{...dependency,span_id:randomBytes(8).toString('hex')}])));
+      assert.equal(results.filter(r=>r.stored===2).length,1);
+      assert.equal(results.filter(r=>r.error==='quota_exceeded').length,5);
+    }finally{await Promise.all(workers.map(close));}
+    assert.equal((await service.query('select count(*)::int n from public.monitoring_spans where project_id=$1',[quotaProject])).rows[0].n,2);
+    const revoker=await connect('service_role'), waiting=await connect('service_role');
+    try {
+      await revoker.query('begin');await revoker.query('update public.monitoring_project_keys set revoked_at=clock_timestamp() where id=$1',[k.id]);
+      const pid=(await waiting.query('select pg_backend_pid() pid')).rows[0].pid;
+      const pending=advancedRpc(waiting,k.hash,[{...dependency,span_id:randomBytes(8).toString('hex')}]);
+      await waitForLock(pid);await revoker.query('commit');assert.equal((await pending).error,'invalid_key');
+    }finally{await revoker.query('rollback');await close(revoker);await close(waiting);}
+    // Retention is signal-agnostic: dependency rows expire using received_at too.
+    await admin.query("update public.monitoring_spans set received_at=clock_timestamp()-interval '8 days' where project_id=$1 and span_kind='CLIENT'",[id]);
+    assert.ok((await service.query('select public.monitoring_prune_expired() result')).rows[0].result.spans_deleted>=1);
+    assert.equal((await service.query("select count(*)::int n from public.monitoring_spans where project_id=$1 and span_kind='CLIENT'",[id])).rows[0].n,0);
+    const bytes=(await service.query("select avg(pg_column_size(s))::int bytes from public.monitoring_spans s where project_id=$1",[quotaProject])).rows[0].bytes;
+    t.diagnostic(`Advanced mixed sample mean heap tuple bytes=${bytes}; excludes indexes, TOAST and bloat; not a load benchmark`);
+    await admin.query('set enable_seqscan=off');
+    const plan=(await admin.query('explain select * from public.monitoring_spans where project_id=$1 and trace_id=$2 order by started_at limit 100',[id,server.trace_id])).rows.map(r=>r['QUERY PLAN']).join('\n');
+    assert.match(plan,/monitoring_spans_trace_time_idx/);await admin.query('reset enable_seqscan');
+    await assert.rejects(admin.query(advancedSql),e=>e.code==='42701');await admin.query('rollback');
+    assert.deepEqual(await snapshot(),original);
+  });
+
   await t.test('migration rerun fails closed and shared application schema/data remain unchanged', async () => {
     await assert.rejects(admin.query(sql[0]),e => e.code==='42P07'); await admin.query('rollback');
     await assert.rejects(admin.query(sql[1]),e => e.code==='42701'); await admin.query('rollback');

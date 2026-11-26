@@ -3,7 +3,7 @@
 // modules, connecting databases, starting schedulers or calling providers.
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const files = ['api/index.js','routes/monitoring.js','monitoring-api.cjs','otlp-parser.cjs',
+const files = ['api/index.js','routes/monitoring.js','monitoring-api.cjs','otlp-parser.cjs','advanced-otlp-parser.cjs',
   'services/database.js','routes/auth.js','middleware/requestCookies.js','middleware/sessionCookie.js',
   'middleware/verifyGoogleMobile.js','config/supabaseAdmin.js','firebase.js',
   'scripts/checkMonitoringEnvironment.js','scripts/checkMonitoringSchema.js','scripts/runBackendTests.js'];

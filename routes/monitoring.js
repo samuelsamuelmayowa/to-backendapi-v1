@@ -19,11 +19,11 @@ function monitoringError(error, req, res, next) {
     : 'Monitoring storage is temporarily unavailable. Please retry shortly.' });
 }
 
-function createMonitoringRoutes({ getSupabase = () => require('../config/supabaseAdmin') } = {}) {
+function createMonitoringRoutes({ getSupabase = () => require('../config/supabaseAdmin'), advancedTraces, advancedIngest } = {}) {
   function lazy(factory) {
     let router;
     return (req, res, next) => {
-      try { router ||= factory({ supabase: getSupabase(), resolveUserId: request => request.authClaims?.userId }); }
+      try { router ||= factory({ supabase: getSupabase(), resolveUserId: request => request.authClaims?.userId, advancedTraces, advancedIngest }); }
       catch (error) { return next(error); }
       return router(req, res, next);
     };

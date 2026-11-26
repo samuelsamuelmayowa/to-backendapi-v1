@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
 const { fixture, payload, register } = require('./helpers/monitoringFixture');
 
 test('authenticated project/key/trace/status workflow with isolated storage adapter', async t => {
@@ -114,4 +114,30 @@ test('project totals include all owned registrations, exclude other owners and a
   assert.equal(data.total,125);
   assert.equal(data.projects.length,100);
   assert.ok(data.projects.every(project=>project.name.startsWith('Application')));
+});
+
+test('key listing includes older active metadata beyond 50 revoked records, with exact scoped counts',async t=>{
+  const f=await fixture();t.after(f.close);
+  const id=randomUUID();f.supabase.rows.monitoring_projects.push({id,owner_user_id:'owner-a',name:'MAFACONNECT API'});
+  for(let i=0;i<50;i++)f.supabase.rows.monitoring_project_keys.push({id:randomUUID(),project_id:id,key_prefix:'to_live_REVOKED1',key_hash:'PRIVATE_HASH',created_at:'2026-11-25T00:00:00Z',revoked_at:'2026-11-25T01:00:00Z'});
+  const active=Array.from({length:3},()=>({id:randomUUID(),project_id:id,key_prefix:'to_live_ACTIVE01',key_hash:'PRIVATE_HASH',created_at:'2026-11-20T00:00:00Z',revoked_at:null}));
+  f.supabase.rows.monitoring_project_keys.push(...active);
+  const response=await f.request(`/api/monitoring/projects/${id}/keys`);assert.equal(response.status,200);
+  const data=await response.json();assert.equal(data.active_count,3);assert.equal(data.max_active_keys,3);
+  assert.ok(active.every(key=>data.keys.some(row=>row.id===key.id&&row.created_at===key.created_at)));
+  assert.ok(!JSON.stringify(data).includes('PRIVATE_HASH')&&!JSON.stringify(data).includes('key_hash'));
+  assert.equal((await f.request(`/api/monitoring/projects/${id}/keys`,{user:'other-owner'})).status,404);
+});
+
+test('authenticated empty JSON batch stores zero spans and does not connect a project with an existing key',async t=>{
+  const f=await fixture();t.after(f.close);
+  const id=randomUUID(),secret='to_live_'+'A'.repeat(43);
+  f.supabase.rows.monitoring_projects.push({id,owner_user_id:'owner-a',name:'MAFACONNECT API',last_received_at:null});
+  f.supabase.rows.monitoring_project_keys.push({id:randomUUID(),project_id:id,key_prefix:'to_live_AAAAAAAA',key_hash:createHash('sha256').update(secret).digest('hex'),revoked_at:null});
+  const sent=await f.request('/otlp/v1/traces',{user:null,method:'POST',body:{resourceSpans:[]},headers:{'x-to-project-key':secret}});
+  assert.equal(sent.status,200);assert.equal(sent.headers.get('x-to-stored-spans'),'0');
+  const status=await (await f.request(`/api/monitoring/projects/${id}/status`)).json();
+  assert.equal(status.connected,false);assert.equal(status.span_count,0);assert.equal(status.has_received,false);assert.equal(status.last_seen_at,null);
+  const metadata=await (await f.request(`/api/monitoring/projects/${id}/keys`)).json();assert.equal(metadata.active_count,1);
+  assert.ok(!f.supabase.rpcCalls.includes('monitoring_create_project_key'));
 });

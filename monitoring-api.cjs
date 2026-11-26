@@ -2,6 +2,7 @@
 const express = require('express');
 const { randomBytes, createHash } = require('node:crypto');
 const { parseOtlpHttpSpans } = require('./otlp-parser.cjs');
+const { parseAdvancedSpans } = require('./advanced-otlp-parser.cjs');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const hashKey = value => createHash('sha256').update(value).digest('hex');
@@ -18,7 +19,7 @@ function publicIngestUrl() {
 
 // Supply resolveUserId(req), which MUST verify the user's existing authentication
 // and return its stable user UID. Never read a user ID from a caller-controlled header.
-function createManagementRouter({ supabase, resolveUserId }) {
+function createManagementRouter({ supabase, resolveUserId, advancedTraces = process.env.MONITORING_ADVANCED_TRACES_ENABLED === 'true' }) {
   assertSupabase(supabase);
   if (typeof resolveUserId !== 'function') throw new Error('resolveUserId(req) is mandatory');
   const router = express.Router();
@@ -89,11 +90,19 @@ function createManagementRouter({ supabase, resolveUserId }) {
   router.get('/projects/:id/keys', async (req, res, next) => {
     try {
       if (!await ownedProject(req, res)) return;
+      const fields = 'id,key_prefix,created_at,last_used_at,revoked_at';
+      // Always include active metadata, even when many newer revoked records
+      // would push an older active key beyond the recent-history window.
+      const { data: active, count, error: activeError } = await supabase.from('monitoring_project_keys')
+        .select(fields, { count: 'exact' }).eq('project_id', req.params.id)
+        .is('revoked_at', null).order('created_at', { ascending: false }).limit(3);
+      if (activeError) throw activeError;
       const { data, error } = await supabase.from('monitoring_project_keys')
-        .select('id,key_prefix,created_at,last_used_at,revoked_at')
+        .select(fields)
         .eq('project_id', req.params.id).order('created_at', { ascending:false }).limit(50);
       if (error) throw error;
-      return res.json({ keys: data || [] });
+      const keys = [...new Map([...(active || []), ...(data || [])].map(key => [key.id, key])).values()];
+      return res.json({ keys, active_count: count, max_active_keys: 3 });
     } catch (e) { next(e); }
   });
 
@@ -115,8 +124,10 @@ function createManagementRouter({ supabase, resolveUserId }) {
     try {
       const project = await ownedProject(req, res);
       if (!project) return;
-      const { count, error: countError } = await supabase.from('monitoring_spans')
+      let countQuery = supabase.from('monitoring_spans')
         .select('id', { count: 'exact', head: true }).eq('project_id', req.params.id);
+      if (advancedTraces) countQuery = countQuery.eq('span_kind', 'SERVER');
+      const { count, error: countError } = await countQuery;
       if (countError) throw countError;
       const last = project.last_received_at || null;
       const active = !!last && (Date.now() - new Date(last).getTime()) < 10 * 60 * 1000;
@@ -129,18 +140,25 @@ function createManagementRouter({ supabase, resolveUserId }) {
       if (!await ownedProject(req, res)) return;
       const n = Number(req.query.limit ?? 50);
       if (!Number.isInteger(n) || n < 1 || n > 100) return errorResponse(res, 400, 'limit must be 1–100');
-      const { data, error } = await supabase.from('monitoring_spans')
-        .select('id,received_at,started_at,service_name,trace_id,span_id,http_method,http_route,http_status,duration_ms,span_error')
-        .eq('project_id', req.params.id).order('received_at', { ascending:false }).limit(n);
+      const trace = req.query.trace_id;
+      if (trace !== undefined && (!advancedTraces || typeof trace !== 'string' || !/^[0-9a-f]{32}$/.test(trace) || /^0+$/.test(trace))) return errorResponse(res, 400, 'Valid trace_id requires advanced tracing');
+      let query = supabase.from('monitoring_spans')
+        .select('id,received_at,started_at,service_name,trace_id,span_id,http_method,http_route,http_status,duration_ms,span_error'
+          + (advancedTraces ? ',parent_span_id,span_kind,span_name,environment,service_version,db_system,db_operation,error_type' : ''))
+        .eq('project_id', req.params.id);
+      if (trace) query = query.eq('trace_id', trace);
+      else if (advancedTraces) query = query.eq('span_kind', 'SERVER');
+      const { data, error } = await query.order(trace ? 'started_at' : 'received_at', { ascending: !!trace }).limit(n);
       if (error) throw error;
-      return res.json({ spans: data || [] });
+      return res.json({ spans: data || [], ...(advancedTraces ? { possibly_truncated: (data || []).length === n } : {}) });
     } catch (e) { next(e); }
   });
 
   return router;
 }
 
-function createOtlpIngestRouter({ supabase }) {
+function createOtlpIngestRouter({ supabase, advancedTraces = process.env.MONITORING_ADVANCED_TRACES_ENABLED === 'true',
+  advancedIngest = advancedTraces && process.env.MONITORING_ADVANCED_TRACES_INGEST_ENABLED !== 'false' }) {
   assertSupabase(supabase);
   const router = express.Router();
   router.post('/v1/traces', express.json({ type: 'application/json', limit: '256kb' }), async (req, res, next) => {
@@ -154,10 +172,10 @@ function createOtlpIngestRouter({ supabase }) {
         .select('id,project_id').eq('key_hash', hashKey(secret)).is('revoked_at', null).maybeSingle();
       if (keyError) throw keyError;
       if (!key) return errorResponse(res, 401, 'Invalid project ingestion key');
-      const spans = parseOtlpHttpSpans(req.body, key.project_id);
+      const spans = (advancedTraces && advancedIngest ? parseAdvancedSpans : parseOtlpHttpSpans)(req.body, key.project_id);
       // Revalidate the key, enforce quota, persist spans, and update project status
       // in one transaction. Client-supplied project IDs are never trusted.
-      const { data, error } = await supabase.rpc('monitoring_ingest_spans', {
+      const { data, error } = await supabase.rpc(advancedTraces && advancedIngest ? 'monitoring_ingest_spans_v2' : 'monitoring_ingest_spans', {
         p_key_hash: hashKey(secret), p_spans: spans,
       });
       if (error) throw error;
@@ -167,7 +185,7 @@ function createOtlpIngestRouter({ supabase }) {
         return errorResponse(res, 429, 'Project trace quota exceeded');
       }
       res.set('X-TO-Stored-Spans', String(data?.stored || 0));
-      // Valid OTLP/JSON success response. 0 stored means no qualifying HTTP SERVER spans.
+      // Valid OTLP/JSON success response. 0 stored means duplicates/no eligible spans.
       return res.status(200).json({});
     } catch (e) {
       if (e.status) return errorResponse(res, e.status, e.message);
