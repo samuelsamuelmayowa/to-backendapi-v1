@@ -68,9 +68,14 @@ function fakeSupabase() {
 async function fixture(options = {}) {
   process.env.JWT_SECRET = 'monitoring-test-only-secret';
   process.env.MONITORING_PUBLIC_OTLP_TRACES_URL = 'http://127.0.0.1:8000/otlp/v1/traces';
-  const supabase = fakeSupabase();
+  const { storage, onExport, ...routeOptions } = options;
+  const supabase = storage || fakeSupabase();
   const app = express();
-  const routes = createMonitoringRoutes({ getSupabase: () => supabase, ...options });
+  const routes = createMonitoringRoutes({ getSupabase: () => supabase, ...routeOptions });
+  if (onExport) app.use('/otlp', express.json({ limit: '256kb' }), (req, res, next) => {
+    res.on('finish', () => onExport(req.body, res.statusCode, Number(res.getHeader('X-TO-Stored-Spans') || 0)));
+    next();
+  });
   app.use('/otlp', routes.ingestion);
   app.use('/api/monitoring', express.json({ limit: '16kb' }), monitoringError);
   app.use(express.json(), cookieParser(), csrfProtection);

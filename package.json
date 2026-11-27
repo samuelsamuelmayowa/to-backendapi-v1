@@ -12,6 +12,7 @@
     "check:monitoring-schema": "node scripts/checkMonitoringSchema.js",
     "test:monitoring": "node --test tests/parser.test.cjs tests/monitoring.test.js tests/advancedTelemetry.test.cjs tests/monitoringActivity.test.cjs",
     "test:monitoring-exporter": "node --test tests/monitoringExporter.test.js",
+    "test:monitoring-correlation": "node --test tools/monitoring-db-tests/correlation.test.cjs",
     "start": "node api/index.js",
     "seed:splunk": "node scripts/seedSplunkCases.js",  
     "import:splunk-tutorial": "node scripts/importSplunkTutorial.js",
