@@ -13,12 +13,13 @@ function fakeSupabase() {
   const client = { rows, quotaExceeded: false, unavailable: false, rpcCalls: [],
     from(table) {
       const filters = [];
-      let fields = '*', mode = 'read', input, single = false, head = false, max = Infinity;
+      let fields = '*', mode = 'read', input, single = false, head = false, max = Infinity, sorting;
       const query = {
         select(value = '*', opts = {}) { fields = value; head = opts.head; return this; },
         eq(key, value) { filters.push(row => row[key] === value); return this; },
         is(key, value) { filters.push(row => (row[key] ?? null) === value); return this; },
-        order() { return this; }, limit(value) { max = value; return this; },
+        not(key, operator, value) { if (operator !== 'is') throw new Error('Unsupported test filter'); filters.push(row => (row[key] ?? null) !== value); return this; },
+        order(key, { ascending = true } = {}) { sorting = { key, ascending }; return this; }, limit(value) { max = value; return this; },
         insert(value) { mode = 'insert'; input = value; return this; },
         update(value) { mode = 'update'; input = value; return this; },
         single() { single = true; return this; }, maybeSingle() { single = true; return this; },
@@ -30,6 +31,7 @@ function fakeSupabase() {
             if (mode === 'insert') result = [rows[table].at(-1)];
             if (mode === 'update') result.forEach(row => Object.assign(row, input));
             const count = result.length;
+            if (sorting) result.sort((a, b) => (a[sorting.key] < b[sorting.key] ? -1 : a[sorting.key] > b[sorting.key] ? 1 : 0) * (sorting.ascending ? 1 : -1));
             result = result.slice(0, max).map(row => fields === '*' ? { ...row } : Object.fromEntries(fields.split(',').map(key => [key, row[key]])));
             return { data: head ? null : single ? result[0] || null : result, count, error: null };
           }).then(resolve, reject);

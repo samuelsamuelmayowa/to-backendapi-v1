@@ -127,11 +127,29 @@ function createManagementRouter({ supabase, resolveUserId, advancedTraces = proc
       let countQuery = supabase.from('monitoring_spans')
         .select('id', { count: 'exact', head: true }).eq('project_id', req.params.id);
       if (advancedTraces) countQuery = countQuery.eq('span_kind', 'SERVER');
-      const { count, error: countError } = await countQuery;
+      let httpQuery = supabase.from('monitoring_spans').select('received_at')
+        .eq('project_id', req.params.id).not('http_method', 'is', null);
+      if (advancedTraces) httpQuery = httpQuery.eq('span_kind', 'SERVER');
+      const databaseQuery = advancedTraces ? supabase.from('monitoring_spans').select('received_at')
+        .eq('project_id', req.params.id).eq('span_kind', 'CLIENT').not('db_system', 'is', null)
+        .order('received_at', { ascending: false }).limit(1) : Promise.resolve({ data: [] });
+      const [counts, http, database] = await Promise.all([countQuery,
+        httpQuery.order('received_at', { ascending: false }).limit(1), databaseQuery]);
+      const { count, error: countError } = counts;
       if (countError) throw countError;
-      const last = project.last_received_at || null;
-      const active = !!last && (Date.now() - new Date(last).getTime()) < 10 * 60 * 1000;
-      return res.json({ connected: active, has_received: !!last, last_seen_at: last, span_count: count || 0, retention_days: 7 });
+      if (http.error) throw http.error;
+      if (database.error) throw database.error;
+      const last = http.data?.[0]?.received_at || null;
+      const databaseLast = database.data?.[0]?.received_at || null;
+      const now = Date.now();
+      const recent = value => !!value && Number.isFinite(Date.parse(value))
+        && now >= Date.parse(value) && now - Date.parse(value) < 10 * 60 * 1000;
+      return res.json({ connected: recent(last), has_received: !!last, last_seen_at: last,
+        http_last_seen_at: last, http_active: recent(last),
+        database_last_seen_at: databaseLast, database_active: recent(databaseLast),
+        telemetry_last_seen_at: project.last_received_at || null,
+        availability: 'unknown', activity_window_seconds: 600,
+        span_count: count || 0, retention_days: 7 });
     } catch (e) { next(e); }
   });
 

@@ -10,7 +10,7 @@
     "test:monitoring-migrations": "node --test tools/monitoring-db-tests/migrations.test.cjs",
     "test:monitoring-retention": "node --test tests/monitoringRetention.test.js",
     "check:monitoring-schema": "node scripts/checkMonitoringSchema.js",
-    "test:monitoring": "node --test tests/parser.test.cjs tests/monitoring.test.js",
+    "test:monitoring": "node --test tests/parser.test.cjs tests/monitoring.test.js tests/advancedTelemetry.test.cjs tests/monitoringActivity.test.cjs",
     "test:monitoring-exporter": "node --test tests/monitoringExporter.test.js",
     "start": "node api/index.js",
     "seed:splunk": "node scripts/seedSplunkCases.js",  

@@ -86,6 +86,7 @@ test('key cap, invalid identifiers, stale status and safe storage errors', async
   assert.equal((await f.request('/api/monitoring/projects/invalid/status')).status, 400);
   assert.equal((await f.request(path + '/spans?limit=101')).status, 400);
   f.supabase.rows.monitoring_projects[0].last_received_at = new Date(Date.now() - 11 * 60_000).toISOString();
+  f.supabase.rows.monitoring_spans.push({ project_id: project.id, span_kind: 'SERVER', http_method: 'GET', received_at: f.supabase.rows.monitoring_projects[0].last_received_at });
   const status = await (await f.request(path + '/status')).json();
   assert.equal(status.connected, false); assert.equal(status.has_received, true);
   f.supabase.unavailable = true;
