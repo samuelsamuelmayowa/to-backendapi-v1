@@ -56,7 +56,7 @@ const { fixture } = require('../tests/helpers/monitoringFixture');
     if (mysql && success) env.MONITORING_TEST_MYSQL_SUCCESS = '1';
     if (process.argv.includes('--frontend-setup')) {
       const { otelEnvironment } = await import(pathToFileURL(path.join(__dirname, '../../to-monitoring/src/lib/otelSetup.js')).href);
-      Object.assign(env, otelEnvironment({ name: 'local-monitoring-test', endpoint: f.root + '/otlp/v1/traces', secret }));
+      Object.assign(env, otelEnvironment({ name: 'local-monitoring-test', integration: mysql ? 'mysql2' : 'http', endpoint: f.root + '/otlp/v1/traces', secret }));
     }
     if(process.argv.includes('--default-detectors')) delete env.OTEL_NODE_RESOURCE_DETECTORS;
     child=spawn(process.execPath,['--require',register,path.join(__dirname,'monitoring-node-probe-app.cjs')],{cwd:path.join(__dirname,'..'),env,windowsHide:true,stdio:['ignore','pipe','pipe']});

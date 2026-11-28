@@ -153,6 +153,38 @@ function createManagementRouter({ supabase, resolveUserId, advancedTraces = proc
     } catch (e) { next(e); }
   });
 
+  router.get('/projects/:id/database-insights', async (req, res, next) => {
+    try {
+      if (!await ownedProject(req, res)) return;
+      if (!advancedTraces || process.env.MONITORING_DATABASE_INSIGHTS_ENABLED !== 'true') return errorResponse(res, 404, 'Database insights are disabled');
+      const hours = Number(req.query.hours ?? 24), threshold = Number(req.query.threshold ?? 500);
+      if (![1,24,168].includes(hours) || !Number.isFinite(threshold) || threshold < 1 || threshold > 86400000) return errorResponse(res, 400, 'Invalid range or threshold');
+      const system = req.query.system, service = req.query.service;
+      if (system !== undefined && !['mysql','postgresql','sqlite','redis','mongodb'].includes(system)
+        || service !== undefined && (typeof service !== 'string' || !/^[A-Za-z][A-Za-z0-9_.-]{0,99}$/.test(service))) return errorResponse(res, 400, 'Invalid database or service filter');
+      const end = new Date(), start = new Date(end.getTime() - hours * 3600000);
+      let query = supabase.from('monitoring_spans').select('started_at,duration_ms,span_error')
+        .eq('project_id', req.params.id).eq('span_kind', 'CLIENT').not('db_system', 'is', null)
+        .gte('started_at', start.toISOString()).lte('started_at', end.toISOString());
+      if (system) query = query.eq('db_system', system);
+      if (service) query = query.eq('service_name', service);
+      // 1000 is also Supabase's default response cap. Never claim completeness at the cap.
+      const { data, error } = await query.order('started_at', { ascending: false }).limit(1000);
+      if (error) throw error;
+      const rows = data || [], { aggregateDatabase } = require('./database-insights.cjs');
+      const buckets = new Map();
+      for (const row of rows) {
+        const at = new Date(Math.floor(Date.parse(row.started_at) / 3600000) * 3600000).toISOString();
+        if (!buckets.has(at)) buckets.set(at, []);
+        buckets.get(at).push(row);
+      }
+      return res.json({ ...aggregateDatabase(rows, threshold), start: start.toISOString(), end: end.toISOString(),
+        threshold_ms: threshold, possibly_truncated: rows.length >= 1000, limit: 1000,
+        scope: 'Newest up to 1000 stored database operations in the selected range; sampling and retention may omit operations. Unflagged outcomes are unknown. Recorded error rate is a lower bound.',
+        trends: [...buckets].sort(([a],[b]) => a.localeCompare(b)).map(([at, values]) => ({ at, ...aggregateDatabase(values, threshold) })) });
+    } catch (e) { next(e); }
+  });
+
   router.get('/projects/:id/spans', async (req, res, next) => {
     try {
       if (!await ownedProject(req, res)) return;

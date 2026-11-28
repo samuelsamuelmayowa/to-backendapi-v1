@@ -17,6 +17,8 @@ function fakeSupabase() {
       const query = {
         select(value = '*', opts = {}) { fields = value; head = opts.head; return this; },
         eq(key, value) { filters.push(row => row[key] === value); return this; },
+        gte(key, value) { filters.push(row => row[key] >= value); return this; },
+        lte(key, value) { filters.push(row => row[key] <= value); return this; },
         is(key, value) { filters.push(row => (row[key] ?? null) === value); return this; },
         not(key, operator, value) { if (operator !== 'is') throw new Error('Unsupported test filter'); filters.push(row => (row[key] ?? null) !== value); return this; },
         order(key, { ascending = true } = {}) { sorting = { key, ascending }; return this; }, limit(value) { max = value; return this; },

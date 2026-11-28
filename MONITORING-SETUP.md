@@ -1,5 +1,7 @@
 # Monitoring registration and OTLP ingestion
 
+> Current developer onboarding: [Node.js Quickstart](MONITORING-NODE-QUICKSTART.md). The deployment diagnosis and migration notes below are historical records, not current developer setup instructions. Do not infer current production state from them or rerun migrations.
+
 **Activation update:** The owner has now applied and verified both migrations in
 production. Do not rerun schema SQL. The historical review steps below are an
 archive; use `MONITORING-RENDER-ACTIVATION.md` for the current backend release.

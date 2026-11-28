@@ -64,7 +64,10 @@ async function start() {
     await new Promise(resolve => mysqlEndpoint.listen(0, '127.0.0.1', resolve));
     await query(); // Startup operation outside any HTTP request.
   }
-  server = app.listen(0, '127.0.0.1', () => console.log(`Probe listening port=${server.address().port}`));
+  server = app.listen(Number(process.env.MONITORING_TEST_PORT || 0), '127.0.0.1', error => {
+    if (error) return console.log(`Probe bind error=${error.code}`);
+    console.log(`Probe listening port=${server.address().port}`);
+  });
 }
 start().catch(() => process.exit(1));
 process.on('SIGTERM', () => { server?.close(); dependency?.close(); mysqlEndpoint?.close(); });

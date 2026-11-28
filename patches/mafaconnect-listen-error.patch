@@ -1,0 +1,9 @@
+--- a/app.js
++++ b/app.js
+@@ -302,1 +302,5 @@
+-    app.listen(PORT, () => {
++    app.listen(PORT, (error) => {
++      if (error) {
++        console.error("Server failed to listen:", error.code || "LISTEN_FAILED");
++        return;
++      }
